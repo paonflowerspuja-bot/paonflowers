@@ -16,6 +16,9 @@ import productRoutes from "./routes/productRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 
+import { connectDB } from "./config/db.js";
+await connectDB();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -44,6 +47,13 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/uploads", uploadRoutes);
 
 app.get("/api/health", (_, res) => res.json({ ok: true }));
+
+// --- serve client build in production ---
+if (process.env.NODE_ENV === "production") {
+  const distPath = path.join(__dirname, "client", "dist");
+  app.use(express.static(distPath));
+  app.get("*", (_, res) => res.sendFile(path.join(distPath, "index.html")));
+}
 
 // error handler
 app.use(errorHandler);

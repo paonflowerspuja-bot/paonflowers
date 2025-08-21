@@ -1,14 +1,12 @@
+// server/config/db.js
 import mongoose from "mongoose";
 
-const uri = process.env.MONGO_URI;
-if (!uri) throw new Error("MONGO_URI missing");
-
-mongoose
-  .connect(uri, { autoIndex: true })
-  .then(() => console.log("MongoDB connected"))
-  .catch((e) => {
-    console.error("MongoDB error:", e);
+export async function connectDB() {
+  const uri = process.env.MONGO_URI;
+  if (!uri) {
+    console.error("MONGO_URI missing in .env at project root");
     process.exit(1);
-  });
-
-export default mongoose;
+  }
+  await mongoose.connect(uri, { dbName: "paonflowers" });
+  console.log("✅ MongoDB connected");
+}
