@@ -31,3 +31,14 @@ export default api;
 export const apiPath = (p = "") => `${API_BASE}${p}`;
 export const imgUrl = (url) =>
   url?.startsWith("http") ? url : `${API_BASE}${url || ""}`;
+
+// ---- add below your existing code in utils/api.js ----
+export const sendOtpAPI = (phone) => api.post("/api/auth/send-otp", { phone });
+
+export const verifyOtpAPI = (phone, code) =>
+  api.post("/api/auth/verify-otp", { phone, code });
+
+export const getMeAPI = () => api.get("/api/auth/me");
+
+export const updateProfileAPI = (payload) =>
+  api.patch("/api/auth/profile", payload);

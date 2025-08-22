@@ -78,7 +78,14 @@ const AppRoutes = () => {
         <Route path="custom-flowers" element={<CustomFlowers />} />
 
         {/* Protected Routes */}
-        <Route path="/profile" element={<Profile />} />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/orders"
           element={

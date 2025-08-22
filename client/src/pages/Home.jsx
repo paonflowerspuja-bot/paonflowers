@@ -18,7 +18,7 @@ const Home = () => {
             className="d-flex gap-3  animate__animated animate__fadeInUp "
             style={{ marginBottom: "100px" }}
           >
-            <Link to="/flowers" className="luxury-btn text-decoration-none ">
+            <Link to="/shop" className="luxury-btn text-decoration-none ">
               Shop Now
             </Link>
             <Link to="/offers" className="luxury-btn text-decoration-none  ">
