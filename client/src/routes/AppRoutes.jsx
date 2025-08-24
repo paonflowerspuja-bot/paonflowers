@@ -41,6 +41,7 @@ import BlogPost from "../pages/blog/BlogPost";
 import NextDay from "../pages/NextDay/NextDay";
 import Weddings from "../pages/weddings/Weddings";
 import CustomFlowers from "../pages/customization/CustomFlowers";
+import FeaturedFlowers from "../pages/FeaturedFlowers";
 
 import ShopAll from "../pages/ShopAll";
 
@@ -50,9 +51,7 @@ const AppRoutes = () => {
       <Route path="/" element={<Layout />}>
         {/* Home Page */}
         <Route index element={<Home />} />
-
         <Route path="shop" element={<ShopAll />} />
-
         {/* Flower Categories */}
         <Route path="flowers" element={<Flowers />} />
         <Route path="flowers/birthday" element={<Birthday />} />
@@ -62,11 +61,10 @@ const AppRoutes = () => {
         <Route path="flowers/Eid" element={<Eid />} />
         <Route path="flowers/MothersDay" element={<MothersDay />} />
         <Route path="flowers/BridalBoutique" element={<BridalBoutique />} />
-
+        <Route path="flowers/featured" element={<FeaturedFlowers />} />
         {/* Blog */}
         <Route path="blog" element={<Blog />} />
         <Route path="blog/:slug" element={<BlogPost />} />
-
         {/* Other Pages */}
         <Route path="offers" element={<Offers />} />
         <Route path="faq" element={<FAQ />} />
@@ -76,7 +74,6 @@ const AppRoutes = () => {
         <Route path="nextday" element={<NextDay />} />
         <Route path="weddings" element={<Weddings />} />
         <Route path="custom-flowers" element={<CustomFlowers />} />
-
         {/* Protected Routes */}
         <Route
           path="/profile"
@@ -102,7 +99,6 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/otp"
           element={
@@ -111,7 +107,6 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-
         <Route
           path="/order-success"
           element={
@@ -127,11 +122,9 @@ const AppRoutes = () => {
           <Route path="delivery" element={<DeliveryStatus />} />
           <Route path="customers" element={<Customers />} />
         </Route>
-
         {/* Auth */}
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-
         {/* Catch-all */}
         <Route path="*" element={<NotFound />} />
       </Route>

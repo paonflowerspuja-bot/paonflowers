@@ -1,6 +1,7 @@
 import React from "react";
 import Carousel from "react-multi-carousel";
 import "react-multi-carousel/lib/styles.css";
+import { Link } from "react-router-dom";
 const featuredFlowers = [
   {
     title: "Rose Elegance",
@@ -81,14 +82,23 @@ const FeaturedFlowers = () => {
           </Carousel>
         </div>
         <div className="d-flex justify-content-center mt-5 ">
-          <button
+          {/* <button
             className="btn-pink rounded py-3 "
             style={{
               padding: "0 100px 0 100px",
             }}
           >
             SHOP OUR FEATURED
-          </button>
+          </button> */}
+          <Link
+            to="/flowers/featured"
+            className="btn-pink rounded py-3 "
+            style={{
+              padding: "0 100px 0 100px",
+            }}
+          >
+            SHOP OUR FEATURED
+          </Link>
         </div>
       </div>
     </section>

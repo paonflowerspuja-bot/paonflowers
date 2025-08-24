@@ -2,17 +2,36 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import gsap from "gsap";
 import { useCart } from "/src/context/CartContext.jsx";
-import products from "../data/productsData"; // your data source (array)
+import localProducts from "../data/productsData"; // fallback data
 
 const PAGE_SIZE = 12;
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ""; // e.g. https://api.example.com
+const USE_API = !!API_BASE;
+const CURRENCY = import.meta.env.VITE_CURRENCY || "AED";
+const LOCALE = CURRENCY === "AED" ? "en-AE" : "en-IN";
 
-// Helper to build image URLs safely, even with spaces in folder names
+const formatCurrency = (n) =>
+  new Intl.NumberFormat(LOCALE, {
+    style: "currency",
+    currency: CURRENCY,
+    maximumFractionDigits: 2,
+  }).format(Number(n) || 0);
+
+// Helper to build image URLs safely (supports http(s), data:, and local assets with spaces)
 const IMG = (p) => {
   if (!p) return "/assets/rose.jpg";
-  // If already absolute-like path, return as-is
+  if (/^(https?:|data:)/i.test(p)) return p; // absolute urls or data URI
   if (p.startsWith("/")) return encodeURI(p);
   return encodeURI(`/assets/${p}`);
 };
+
+// Stable, sluggy id fallback (avoids random ids on each add)
+const slug = (s = "") =>
+  s
+    .toString()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "");
 
 const ShopAll = () => {
   const { dispatch } = useCart();
@@ -24,49 +43,59 @@ const ShopAll = () => {
   const cardRefs = useRef([]);
 
   // Local state
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE); // used for local fallback only
   const [sortBy, setSortBy] = useState("featured");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // Sort
-  const sortedProducts = useMemo(() => {
-    const list = Array.isArray(products) ? [...products] : [];
-    return list.sort((a, b) => {
-      const pa = Number(a?.price) || 0;
-      const pb = Number(b?.price) || 0;
-      const na = (a?.name || a?.title || "").toLowerCase();
-      const nb = (b?.name || b?.title || "").toLowerCase();
-      switch (sortBy) {
-        case "price-asc":
-          return pa - pb;
-        case "price-desc":
-          return pb - pa;
-        case "name-asc":
-          return na.localeCompare(nb);
-        case "name-desc":
-          return nb.localeCompare(na);
-        default:
-          return 0; // featured
+  // ---- Optional API wiring (server paging) ----
+  const fetchPage = async (pageToLoad = 1, replace = false) => {
+    try {
+      setLoading(true);
+      setError("");
+      const params = new URLSearchParams({
+        page: String(pageToLoad),
+        limit: String(PAGE_SIZE),
+        sort: sortBy, // expect API to understand: featured | price-asc | price-desc | name-asc | name-desc
+      });
+      const res = await fetch(`${API_BASE}/products?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      // Expecting { items: [{ _id, name, images, price, mrp, category, badge, ...}], total: number }
+      const mapped = Array.isArray(data.items)
+        ? data.items.map((p) => ({
+            id: p._id || p.id,
+            name: p.name || p.title || "Flower",
+            image: (Array.isArray(p.images) && p.images[0]) || p.image || p.img,
+            price: p.price,
+            mrp: p.mrp,
+            category: p.category || "Bouquet",
+            badge: p.badge,
+            isNew: p.isNew,
+            bestseller: p.bestseller,
+          }))
+        : [];
+
+      setItems((prev) => (replace ? mapped : [...prev, ...mapped]));
+      setTotal(
+        Number(data.total) ||
+          (replace ? mapped.length : prev.length + mapped.length)
+      );
+      setPage(pageToLoad);
+    } catch (e) {
+      setError("Could not load products.");
+      // fallback to local data if first load fails
+      if (items.length === 0) {
+        const list = Array.isArray(localProducts) ? localProducts : [];
+        setItems(list);
+        setTotal(list.length);
       }
-    });
-  }, [sortBy]);
-
-  const visibleProducts = sortedProducts.slice(0, visibleCount);
-
-  const addToCart = (item) => {
-    dispatch({
-      type: "ADD_TO_CART",
-      payload: {
-        id:
-          item?.id ??
-          `${(item?.name || "item").toLowerCase()}-${Math.random()
-            .toString(36)
-            .slice(2, 8)}`,
-        name: item?.name || item?.title || "Flower",
-        image: item?.image || item?.img || "/assets/rose.jpg",
-        price: Number(item?.price) || 0,
-        quantity: 1,
-      },
-    });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Initial entrances
@@ -103,40 +132,107 @@ const ShopAll = () => {
     }
   }, []);
 
+  // Load data on mount and when sort changes
+  useEffect(() => {
+    if (USE_API) {
+      fetchPage(1, true);
+    } else {
+      const list = Array.isArray(localProducts) ? localProducts : [];
+      setItems(list);
+      setTotal(list.length);
+      setVisibleCount(PAGE_SIZE);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortBy]);
+
+  // ---- Local sorting (for fallback data only) ----
+  const sortedLocal = useMemo(() => {
+    if (USE_API) return items; // API should return sorted
+    const list = Array.isArray(items) ? [...items] : [];
+    return list.sort((a, b) => {
+      const pa = Number(a?.price) || 0;
+      const pb = Number(b?.price) || 0;
+      const na = (a?.name || a?.title || "").toLowerCase();
+      const nb = (b?.name || b?.title || "").toLowerCase();
+      switch (sortBy) {
+        case "price-asc":
+          return pa - pb;
+        case "price-desc":
+          return pb - pa;
+        case "name-asc":
+          return na.localeCompare(nb);
+        case "name-desc":
+          return nb.localeCompare(na);
+        default:
+          return 0; // featured
+      }
+    });
+  }, [items, sortBy]);
+
+  const visibleProducts = USE_API ? items : sortedLocal.slice(0, visibleCount);
+
+  const addToCart = (item) => {
+    const base = item?.name || item?.title || "Flower";
+    const stable =
+      item?.id ||
+      item?._id ||
+      `${slug(base)}-${slug(String(item?.mrp || item?.price || ""))}`;
+    dispatch({
+      type: "ADD_TO_CART",
+      payload: {
+        id: stable,
+        name: base,
+        image: item?.image || item?.img || "/assets/rose.jpg",
+        price: Number(item?.price) || 0,
+        quantity: 1,
+      },
+    });
+  };
+
   // Animate cards every time the visible set changes
   useEffect(() => {
     if (!cardRefs.current.length) return;
-    // ensure all are visible after animation
     gsap.set(cardRefs.current, { autoAlpha: 1 });
     gsap.fromTo(
       cardRefs.current,
       { autoAlpha: 0, y: 24 },
       { autoAlpha: 1, y: 0, duration: 0.45, ease: "power2.out", stagger: 0.05 }
     );
-    // cleanup: keep refs array length in sync
     return () => {
-      cardRefs.current = [];
+      // keep refs array length in sync
+      cardRefs.current = cardRefs.current.slice(0, visibleProducts.length);
     };
   }, [visibleProducts.length]);
 
-  // Promo tiles (put these images in /public/assets to resolve)
+  // Promo tiles (images should be in /public/assets; avoid HEIC in browsers)
   const promos = [
     {
       title: "Fresh Bouquets",
       subtitle: "Hand-tied daily",
-      img: "/assets/Valentine day/309c063f-f2dc-4050-8d43-eb91c07cadbe.jpg",
+      img: "/src/assets/Valentine day/ef7043a7-8c3e-4cad-987e-ff8ebe9b9e77.jpg",
     },
     {
       title: "Seasonal Bestsellers",
       subtitle: "Trending this week",
-      img: "/assets/General bookey types/4eebd683-a3b7-4f4b-b2e8-27b6f86cac62.jpg",
+      img: "/src/assets/Valentine day/ef7043a7-8c3e-4cad-987e-ff8ebe9b9e77.jpg",
     },
     {
       title: "Gifts & Add-ons",
       subtitle: "Teddy • Balloons • Cards",
-      img: "/assets/Add ons/Teddy bear/IMG_5213.HEIC",
+      // Convert HEIC to JPG/PNG for web compatibility
+      img: "/src/assets/Valentine day/ef7043a7-8c3e-4cad-987e-ff8ebe9b9e77.jpg",
     },
   ];
+
+  const onLoadMore = () => {
+    if (USE_API) {
+      fetchPage(page + 1);
+    } else {
+      setVisibleCount((c) => c + PAGE_SIZE);
+    }
+  };
+
+  const totalCount = USE_API ? total : sortedLocal.length;
 
   return (
     <div className="shop-page">
@@ -192,7 +288,7 @@ const ShopAll = () => {
             <div className="small text-muted">
               Showing{" "}
               <strong>
-                {visibleProducts.length}/{sortedProducts.length}
+                {visibleProducts.length}/{totalCount}
               </strong>{" "}
               items
             </div>
@@ -200,7 +296,10 @@ const ShopAll = () => {
               <label className="small text-muted mb-0">Sort by</label>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  if (USE_API) setItems([]); // reset list for new sort
+                }}
                 className="form-select form-select-sm"
                 style={{ minWidth: 190 }}
               >
@@ -217,6 +316,12 @@ const ShopAll = () => {
 
       {/* PRODUCT GRID */}
       <section className="container py-4">
+        {error && (
+          <div className="alert alert-warning small" role="alert">
+            {error}
+          </div>
+        )}
+
         <div className="row g-3 g-md-4">
           {visibleProducts.map((p, idx) => (
             <div
@@ -253,12 +358,10 @@ const ShopAll = () => {
                     {p?.name || p?.title || "Elegant Bouquet"}
                   </h6>
                   <div className="mb-2">
-                    <span className="fw-bold">
-                      ₹{Number(p?.price || 0).toFixed(2)}
-                    </span>
+                    <span className="fw-bold">{formatCurrency(p?.price)}</span>
                     {p?.mrp && Number(p.mrp) > (Number(p.price) || 0) ? (
                       <small className="text-muted ms-2 text-decoration-line-through">
-                        ₹{Number(p.mrp).toFixed(2)}
+                        {formatCurrency(p.mrp)}
                       </small>
                     ) : null}
                   </div>
@@ -270,21 +373,14 @@ const ShopAll = () => {
                     >
                       Add to Cart
                     </button>
-                    <button
-                      className="btn btn-outline-secondary btn-sm"
-                      onClick={() =>
-                        window.scrollTo({ top: 0, behavior: "smooth" })
-                      }
-                    >
-                      Quick View
-                    </button>
+                    {/* Quick View removed */}
                   </div>
                 </div>
               </div>
             </div>
           ))}
 
-          {sortedProducts.length === 0 && (
+          {visibleProducts.length === 0 && !loading && (
             <div className="col-12">
               <div className="text-center py-5 bg-white rounded-3 shadow-sm">
                 <h5 className="mb-1">No products found</h5>
@@ -296,12 +392,16 @@ const ShopAll = () => {
           )}
         </div>
 
-        {visibleCount < sortedProducts.length && (
+        {loading && (
+          <div className="text-center my-4">
+            <div className="spinner-border" role="status" />
+            <div className="small text-muted mt-2">Loading...</div>
+          </div>
+        )}
+
+        {(!USE_API ? visibleCount < totalCount : items.length < totalCount) && (
           <div className="text-center mt-4">
-            <button
-              className="btn btn-outline-dark px-4"
-              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-            >
+            <button className="btn btn-outline-dark px-4" onClick={onLoadMore}>
               Load More
             </button>
           </div>
@@ -312,7 +412,7 @@ const ShopAll = () => {
       <section className="container pb-5">
         <h5 className="fw-semibold mb-3">You may also like</h5>
         <div className="row g-3 g-md-4">
-          {(products || []).slice(0, 6).map((p, i) => (
+          {(localProducts || []).slice(0, 6).map((p, i) => (
             <div key={`like-${i}`} className="col-6 col-md-4 col-lg-2">
               <div className="card border-0 shadow-sm h-100 mini-card">
                 <div className="ratio ratio-1x1 rounded-top overflow-hidden">
@@ -333,28 +433,7 @@ const ShopAll = () => {
           ))}
         </div>
 
-        <h5 className="fw-semibold mt-5 mb-3">Recently viewed</h5>
-        <div className="row g-3 g-md-4">
-          {(products || []).slice(6, 12).map((p, i) => (
-            <div key={`view-${i}`} className="col-6 col-md-4 col-lg-2">
-              <div className="card border-0 shadow-sm h-100 mini-card">
-                <div className="ratio ratio-1x1 rounded-top overflow-hidden">
-                  <img
-                    src={IMG(p?.image || p?.img || "/assets/rose.jpg")}
-                    alt={p?.name || "Flower"}
-                    className="w-100 h-100"
-                    style={{ objectFit: "cover" }}
-                    loading="lazy"
-                    onError={(e) => (e.currentTarget.src = "/assets/rose.jpg")}
-                  />
-                </div>
-                <div className="card-body py-2">
-                  <div className="small">{p?.name || "Bouquet"}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* Recently viewed section removed */}
       </section>
     </div>
   );

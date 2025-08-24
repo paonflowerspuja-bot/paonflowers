@@ -32,8 +32,7 @@ const StoreLocation = () => {
 
         <div className="detail-card">
           <h3> Opening Hours</h3>
-          <p>Mon - Fri: 9:00 AM - 9:00 PM</p>
-          <p>Sat - Sun: 10:00 AM - 8:00 PM</p>
+          <p>Mon - Sun: 10:00 AM - 11:00 PM</p>
         </div>
 
         <div className="detail-card">
