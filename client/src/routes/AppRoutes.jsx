@@ -17,7 +17,7 @@ import MothersDay from "../pages/flowers/MothersDay";
 import BridalBoutique from "../pages/flowers/BridalBoutique";
 
 import Cart from "../pages/cart/Cart";
-import Checkout from "../pages/Checkout/Checkout";
+import WhatsAppCheckout from "../pages/Checkout/WhatsAppCheckout";
 import OtpVerification from "../pages/Checkout/OtpVerification";
 import OrderSuccess from "../pages/Checkout/OrderSuccess";
 import Login from "../pages/user/Login";
@@ -95,10 +95,11 @@ const AppRoutes = () => {
           path="/checkout"
           element={
             <ProtectedRoute>
-              <Checkout />
+              <WhatsAppCheckout />
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/otp"
           element={

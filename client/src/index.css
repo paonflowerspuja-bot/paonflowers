@@ -600,3 +600,48 @@ textarea.form-control {
   );
   color: #fff;
 }
+
+/* WhatsApp Checkout styles */
+.whatsapp-checkout-page .step-card .step-number {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  background: #e91e63;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 50%;
+  box-shadow: 0 6px 16px rgba(233, 30, 99, 0.25);
+}
+
+.steps-wrapper .step-arrows {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+  height: 140px;
+  pointer-events: none;
+}
+
+.steps-wrapper .arrow-path {
+  fill: none;
+  stroke: rgba(233, 30, 99, 0.45);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 6 6;
+}
+
+.steps-wrapper .arrow-head {
+  fill: rgba(233, 30, 99, 0.6);
+}
+
+/* Optional: pink brand button (Bootstrap-friendly) */
+.btn-pink {
+  background: #e91e63;
+  color: #fff;
+  border: none;
+}
+.btn-pink:hover {
+  background: #d81b60;
+  color: #fff;
+}
