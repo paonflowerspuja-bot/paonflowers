@@ -1,40 +1,75 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import api from "../../utils/api"; // default export in utils/api.js is the axios instance
+
+const STATUS_OPTIONS = [
+  "placed",
+  "confirmed",
+  "preparing",
+  "out-for-delivery",
+  "delivered",
+  "cancelled",
+  "refunded",
+];
 
 const ManageOrders = () => {
-  const orders = [
-    { id: 101, customer: "Ayesha", product: "Rose Bouquet", status: "Pending" },
-    {
-      id: 102,
-      customer: "Rohan",
-      product: "Wedding Flowers",
-      status: "Delivered",
-    },
-  ];
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/api/orders"); // admin only
+      setOrders(data);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateStatus = async (id, status) => {
+    const { data } = await api.patch(`/api/orders/${id}/status`, { status });
+    setOrders((prev) => prev.map((o) => (o._id === id ? data : o)));
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  if (loading) return <div>Loading orders…</div>;
 
   return (
     <div>
       <h2>Manage Orders</h2>
-      <table className="table table-hover">
+      <table className="table">
         <thead>
           <tr>
-            <th>Order ID</th>
+            <th>#</th>
             <th>Customer</th>
-            <th>Product</th>
+            <th>Total</th>
             <th>Status</th>
-            <th>Update</th>
+            <th>Set status</th>
           </tr>
         </thead>
         <tbody>
-          {orders.map((o) => (
-            <tr key={o.id}>
-              <td>{o.id}</td>
-              <td>{o.customer}</td>
-              <td>{o.product}</td>
-              <td>{o.status}</td>
+          {orders.map((o, idx) => (
+            <tr key={o._id}>
+              <td>{idx + 1}</td>
+              <td>{o.user?.name || o.user?.phone || "—"}</td>
+              <td>{o.totalAmount?.toFixed?.(2) ?? "—"}</td>
               <td>
-                <button className="btn btn-success btn-sm">
-                  Mark Delivered
-                </button>
+                <span className="badge bg-secondary">{o.status}</span>
+              </td>
+              <td>
+                <select
+                  className="form-select"
+                  value={o.status}
+                  onChange={(e) => updateStatus(o._id, e.target.value)}
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
               </td>
             </tr>
           ))}

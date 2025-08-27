@@ -24,6 +24,8 @@ import Login from "../pages/user/Login";
 import Signup from "../pages/user/Signup";
 
 import ProtectedRoute from "../components/ProtectedRoute";
+import AdminRoute from "../components/admin/AdminRoute";
+
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import ManageProducts from "../pages/admin/ManageProducts";
 import ManageOrders from "../pages/admin/ManageOrders";
@@ -44,6 +46,8 @@ import CustomFlowers from "../pages/customization/CustomFlowers";
 import FeaturedFlowers from "../pages/FeaturedFlowers";
 
 import ShopAll from "../pages/ShopAll";
+
+import AboutPaonFlowers from "../pages/AboutPaonFlowers.jsx";
 
 const AppRoutes = () => {
   return (
@@ -74,6 +78,8 @@ const AppRoutes = () => {
         <Route path="nextday" element={<NextDay />} />
         <Route path="weddings" element={<Weddings />} />
         <Route path="custom-flowers" element={<CustomFlowers />} />
+        <Route path="/about" element={<AboutPaonFlowers />} />
+
         {/* Protected Routes */}
         <Route
           path="/profile"
@@ -116,7 +122,14 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route path="/admin" element={<AdminDashboard />}>
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          }
+        >
           <Route path="products" element={<ManageProducts />} />
           <Route path="orders" element={<ManageOrders />} />
           <Route path="offers" element={<ManageOffers />} />
