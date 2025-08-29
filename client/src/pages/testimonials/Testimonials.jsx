@@ -85,6 +85,7 @@ const TestimonialCard = React.forwardRef(({ item }, ref) => (
     <div className="pf-card-accent" />
   </div>
 ));
+TestimonialCard.displayName = "TestimonialCard";
 
 const Testimonials = ({
   items = DEFAULT_TESTIMONIALS,
@@ -93,6 +94,10 @@ const Testimonials = ({
   const sectionRef = useRef(null);
   const headingRef = useRef(null);
   const cardRefs = useRef([]);
+  // Stable ref callback to avoid issues with dynamic lists
+  const setCardRef = React.useCallback((el, idx) => {
+    cardRefs.current[idx] = el;
+  }, []);
   const railRef = useRef(null);
 
   const [hasOverflow, setHasOverflow] = useState(false);
@@ -148,7 +153,8 @@ const Testimonials = ({
 
   const getStep = () => {
     const col = railRef.current?.querySelector(".pf-card-col");
-    const gap = parseFloat(getComputedStyle(railRef.current).gap || "24");
+    const gapValue = getComputedStyle(railRef.current).gap;
+    const gap = Number.isNaN(parseFloat(gapValue)) ? 24 : parseFloat(gapValue);
     return (col?.offsetWidth || 340) + gap;
   };
 
@@ -187,12 +193,17 @@ const Testimonials = ({
             ‹
           </button>
 
-          {/* Single-line, CENTERED rail; 3 equal cards */}
-          <div ref={railRef} className="pf-rail" onScroll={updateScrollState}>
+          <div
+            className="pf-rail"
+            ref={railRef}
+            role="list"
+            onScroll={updateScrollState}
+            tabIndex={0}
+          >
             {items.map((item, idx) => (
-              <div key={idx} className="pf-card-col" role="listitem">
+              <div key={item.name} className="pf-card-col" role="listitem">
                 <TestimonialCard
-                  ref={(el) => (cardRefs.current[idx] = el)}
+                  ref={(el) => setCardRef(el, idx)}
                   item={item}
                 />
               </div>
