@@ -1,8 +1,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import FeaturedFlowers from "./FeaturedFlowers/FeaturedFlowers";
+
 import Testimonials from "./testimonials/Testimonials";
 import WhyChooseUs from "./WhyChooseUs/WhyChooseUs";
+import FeaturedFlowers from "./FeaturedFlowers/FeaturedFlowers";
 const Home = () => {
   return (
     <div className=" card-bg">
