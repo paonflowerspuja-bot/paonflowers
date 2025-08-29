@@ -5,18 +5,18 @@ import { Link } from "react-router-dom";
 const featuredFlowers = [
   {
     title: "Rose Elegance",
-    image: "/src/assets/Birthday /85ea5ded-23dd-4a67-9640-c702c5f0b76c.jpg",
+    image: "/src/assets/Birthday/85ea5ded-23dd-4a67-9640-c702c5f0b76c.jpg",
     price: "$2,999",
   },
   {
     title: "Lily Luxury",
-    image: "/src/assets/Birthday /85ea5ded-23dd-4a67-9640-c702c5f0b76c.jpg",
+    image: "/src/assets/Birthday/85ea5ded-23dd-4a67-9640-c702c5f0b76c.jpg",
     price: "$3,499",
   },
   {
     title: "Tulip Charm",
     image:
-      "/Users/gauravkumar/Desktop/paon-flowers/client/client/src/assets/Birthday /85ea5ded-23dd-4a67-9640-c702c5f0b76c.jpg",
+      "/Users/gauravkumar/Desktop/paon-flowers/client/client/src/assets/Birthday/85ea5ded-23dd-4a67-9640-c702c5f0b76c.jpg",
     price: "$2,799",
   },
   {

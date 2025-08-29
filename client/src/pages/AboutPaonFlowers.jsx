@@ -13,7 +13,7 @@ const data = {
     title: "Hi, We’re Paon Flowers",
     subtitle:
       "A Dubai-based premium flower studio crafting bespoke bouquets for every occasion — with flexible customization, negotiable pricing, and a happiness-first mindset.",
-    image: "/src/assets/paon shop.jpeg",
+    image: "/src/assets/paonshop.jpeg",
     cta: { label: "Shop Best Sellers", href: "/shop" },
   },
   guarantee: {
@@ -56,7 +56,7 @@ const data = {
     {
       title: "Farm‑Fresh Quality",
       image:
-        "/src/assets/General bookey types /a125212b-20cc-48c2-a5fd-86d9b6be904c.jpg",
+        "/src/assets/Generalbookeytypes/a125212b-20cc-48c2-a5fd-86d9b6be904c.jpg",
       body: [
         "No middlemen. We source directly from farms so bouquets arrive vibrant and long‑lasting.",
         "We obsess over design, freshness, and finishing so your gift looks beautiful on day one — and beyond.",
