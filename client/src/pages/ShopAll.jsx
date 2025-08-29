@@ -19,7 +19,7 @@ const formatCurrency = (n) =>
 
 // Helper to build image URLs safely (supports http(s), data:, and local assets with spaces)
 const IMG = (p) => {
-  if (!p) return "/assets/rose.jpg";
+  if (!p) return "/public/images/rose.jpg";
   if (/^(https?:|data:)/i.test(p)) return p; // absolute urls or data URI
   if (p.startsWith("/")) return encodeURI(p);
   return encodeURI(`/assets/${p}`);
@@ -182,7 +182,7 @@ const ShopAll = () => {
       payload: {
         id: stable,
         name: base,
-        image: item?.image || item?.img || "/assets/rose.jpg",
+        image: item?.image || item?.img || "/public/images/rose.jpg",
         price: Number(item?.price) || 0,
         quantity: 1,
       },
@@ -338,7 +338,7 @@ const ShopAll = () => {
                   )}
                   <div className="ratio ratio-1x1">
                     <img
-                      src={IMG(p?.image || p?.img || "/assets/rose.jpg")}
+                      src={IMG(p?.image || p?.img || "/public/images/rose.jpg")}
                       alt={p?.name || p?.title || "Flower"}
                       className="w-100 h-100"
                       style={{ objectFit: "cover" }}
@@ -417,12 +417,14 @@ const ShopAll = () => {
               <div className="card border-0 shadow-sm h-100 mini-card">
                 <div className="ratio ratio-1x1 rounded-top overflow-hidden">
                   <img
-                    src={IMG(p?.image || p?.img || "/assets/rose.jpg")}
+                    src={IMG(p?.image || p?.img || "/public/images/rose.jpg")}
                     alt={p?.name || "Flower"}
                     className="w-100 h-100"
                     style={{ objectFit: "cover" }}
                     loading="lazy"
-                    onError={(e) => (e.currentTarget.src = "/assets/rose.jpg")}
+                    onError={(e) =>
+                      (e.currentTarget.src = "/public/images/rose.jpg")
+                    }
                   />
                 </div>
                 <div className="card-body py-2">

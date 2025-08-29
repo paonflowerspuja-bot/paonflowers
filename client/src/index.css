@@ -188,7 +188,7 @@ textarea.form-control {
 ------------------------ */
 .hero-bg-image {
   height: 550px;
-  background-image: url(/src/assets/image2.jpg);
+  background-image: url(/public/images/image2.jpg);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center;

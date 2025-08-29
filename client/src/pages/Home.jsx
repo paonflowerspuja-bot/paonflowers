@@ -34,7 +34,7 @@ const Home = () => {
           <div className="col-md-6 mb-4 mb-md-0 p-0">
             <img
               className="img-fluid right-left-image"
-              src="/src/assets/image1.jpg"
+              src="/public/images/image1.jpg"
               alt="Flowers Delivered"
             />
           </div>
@@ -72,7 +72,7 @@ const Home = () => {
           <div className="col-md-6 mb-4 mb-md-0 p-0">
             <img
               className="img-fluid right-left-image2"
-              src="/src/assets/paonshop.jpeg"
+              src="/public/images/paonshop.jpeg"
               alt="Shop Image"
             />
           </div>
