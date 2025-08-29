@@ -1,12 +1,19 @@
-// server/config/db.js
+// db.js (or wherever you connect)
 import mongoose from "mongoose";
 
+const isProd = process.env.NODE_ENV === "production";
+const uri =
+  process.env.MONGODB_URI ||
+  (!isProd ? "mongodb://127.0.0.1:27017/paonflowers" : null);
+
+if (isProd && !uri) {
+  throw new Error("MONGODB_URI is required in production");
+}
+
 export async function connectDB() {
-  const uri = process.env.MONGO_URI;
-  if (!uri) {
-    console.error("MONGO_URI missing in .env at project root");
-    process.exit(1);
-  }
-  await mongoose.connect(uri, { dbName: "paonflowers" });
+  await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 5000,
+    autoIndex: false,
+  });
   console.log("✅ MongoDB connected");
 }
