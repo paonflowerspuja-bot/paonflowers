@@ -60,7 +60,7 @@ const Home = () => {
           <div className="col-md-6 mb-4 mb-md-0 p-0">
             <img
               className="img-fluid right-left-image2 "
-              src="/src/assets/Birthday /IMG_4759.JPG"
+              src="/src/assets/Birthday/IMG_4759.JPG"
               alt="Birthday Flowers"
             />
           </div>
