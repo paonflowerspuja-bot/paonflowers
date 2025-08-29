@@ -49,11 +49,17 @@ app.use("/api/uploads", uploadRoutes);
 app.get("/api/health", (_, res) => res.json({ ok: true }));
 
 // --- serve client build in production ---
-if (process.env.NODE_ENV === "production") {
-  const distPath = path.join(__dirname, "client", "dist");
-  app.use(express.static(distPath));
-  app.get("*", (_, res) => res.sendFile(path.join(distPath, "index.html")));
-}
+// if (process.env.NODE_ENV === "production") {
+//   const distPath = path.join(__dirname, "client", "dist");
+//   app.use(express.static(distPath));
+//   app.get("*", (_, res) => res.sendFile(path.join(distPath, "index.html")));
+// }
+
+app.get("/", (req, res) => {
+  res
+    .type("text/plain")
+    .send("Paon Flowers API is running ✅  Try /api/health");
+});
 
 // error handler
 app.use(errorHandler);
