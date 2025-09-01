@@ -6,6 +6,7 @@ import { BrowserRouter } from "react-router-dom";
 import { CartProvider } from "./context/CartContext";
 import { AuthProvider } from "./context/AuthContext";
 import { HelmetProvider } from "react-helmet-async";
+
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(

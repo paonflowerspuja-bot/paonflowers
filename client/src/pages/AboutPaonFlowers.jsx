@@ -13,7 +13,7 @@ const data = {
     title: "Hi, We’re Paon Flowers",
     subtitle:
       "A Dubai-based premium flower studio crafting bespoke bouquets for every occasion — with flexible customization, negotiable pricing, and a happiness-first mindset.",
-    image: "/public/images/paonshop.jpeg",
+    image: "/images/paonshop.jpeg",
     cta: { label: "Shop Best Sellers", href: "/shop" },
   },
   guarantee: {
@@ -21,7 +21,7 @@ const data = {
     text: "We want your flowers to be perfect. If anything falls short, we’ll make it right with a replacement or credit — because your joy is our benchmark.",
   },
   mission: {
-    leftImage: "/public/images/rose.jpg",
+    leftImage: "/images/rose.jpg",
     heading: "Our Mission",
     text: [
       "We’re obsessed with the beauty of customization. Every bouquet can be tailored to your vision and budget — and yes, prices are negotiable.",

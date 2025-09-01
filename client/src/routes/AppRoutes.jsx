@@ -122,14 +122,7 @@ const AppRoutes = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <AdminDashboard />
-            </AdminRoute>
-          }
-        >
+        <Route path="/admin" element={<AdminDashboard />}>
           <Route path="products" element={<ManageProducts />} />
           <Route path="orders" element={<ManageOrders />} />
           <Route path="offers" element={<ManageOffers />} />

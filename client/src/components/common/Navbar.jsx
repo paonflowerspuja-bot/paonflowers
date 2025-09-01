@@ -63,20 +63,23 @@ const Navbar = () => {
             />
           </Link>
         </div>
+
+        {/* Right side icons */}
         <div className="d-flex gap-3 align-items-center position-absolute end-0 me-3">
-          <li className="list-unstyled">
+          {/* Store Location: show on lg+ only (moved to menu for mobile) */}
+          <li className="list-unstyled d-none d-lg-block">
             <Link
               to="/store-location"
-              className="text-decoration-none text-muted  "
+              className="text-decoration-none text-muted"
             >
               Store Location
             </Link>
           </li>
+
           <span>Help</span>
-          {/* <Link to="../user/profileIcon/UserMenu">
-            <img src="/images/profile.png" alt="profile" />
-          </Link> */}
+
           <UserMenu />
+
           <Link to="/cart" className="nav-link position-relative">
             <img src="/images/cart.png" alt="cart" />
             {cartCount > 0 && (
@@ -103,12 +106,22 @@ const Navbar = () => {
             type="button"
             data-bs-toggle="collapse"
             data-bs-target="#mainNavbar"
+            aria-controls="mainNavbar"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
           >
             <span className="navbar-toggler-icon"></span>
           </button>
 
           <div className="collapse navbar-collapse" id="mainNavbar">
             <ul className="navbar-nav mx-auto">
+              {/* Store Location: mobile/tablet only */}
+              <li className="nav-item d-lg-none">
+                <Link className="nav-link" to="/store-location">
+                  Store Location
+                </Link>
+              </li>
+
               {/* All Flowers Mega Menu */}
               <li className="nav-item dropdown position-static">
                 <Link

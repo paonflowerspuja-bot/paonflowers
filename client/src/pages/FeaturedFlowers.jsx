@@ -1,6 +1,7 @@
 // src/pages/FeaturedFlowers.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
+
 // Optional: useCart if you want "Add to Cart" (it will safely no-op if missing)
 let useCart;
 try {
@@ -37,6 +38,149 @@ const IMG = (p) => {
 };
 
 const badges = ["New", "Bestseller", "Limited"];
+
+/** Reusable filter controls */
+function FilterControls({
+  allCats,
+  search,
+  setSearch,
+  priceMin,
+  setPriceMin,
+  priceMax,
+  setPriceMax,
+  category,
+  setCategory,
+  badge,
+  setBadge,
+  inStock,
+  setInStock,
+  featuredOnly,
+  setFeaturedOnly,
+  sort,
+  setSort,
+  onClear,
+}) {
+  return (
+    <div className="row g-2">
+      <div className="col-md-6">
+        <label className="form-label small mb-1">Search</label>
+        <input
+          className="form-control"
+          placeholder="Roses, tulips..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      <div className="col-6 col-md-3">
+        <label className="form-label small mb-1">Min</label>
+        <input
+          type="number"
+          className="form-control"
+          placeholder="0"
+          value={priceMin}
+          min="0"
+          onChange={(e) => setPriceMin(e.target.value)}
+        />
+      </div>
+      <div className="col-6 col-md-3">
+        <label className="form-label small mb-1">Max</label>
+        <input
+          type="number"
+          className="form-control"
+          placeholder="1000"
+          value={priceMax}
+          min="0"
+          onChange={(e) => setPriceMax(e.target.value)}
+        />
+      </div>
+
+      <div className="col-md-6">
+        <label className="form-label small mb-1">Category</label>
+        <select
+          className="form-select"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          <option value="">All</option>
+          {allCats.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="col-md-6">
+        <label className="form-label small mb-1">Badge</label>
+        <select
+          className="form-select"
+          value={badge}
+          onChange={(e) => setBadge(e.target.value)}
+        >
+          <option value="">Any</option>
+          {badges.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="col-6">
+        <div className="form-check mt-2">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="instock"
+            checked={inStock}
+            onChange={(e) => setInStock(e.target.checked)}
+          />
+          <label className="form-check-label" htmlFor="instock">
+            In stock only
+          </label>
+        </div>
+      </div>
+      <div className="col-6">
+        <div className="form-check mt-2">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            id="featured"
+            checked={featuredOnly}
+            onChange={(e) => setFeaturedOnly(e.target.checked)}
+          />
+          <label className="form-check-label" htmlFor="featured">
+            Featured only
+          </label>
+        </div>
+      </div>
+
+      <div className="col-md-6">
+        <label className="form-label small mb-1">Sort by</label>
+        <select
+          className="form-select"
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+        >
+          <option value="featured">Featured</option>
+          <option value="price-asc">Price: Low → High</option>
+          <option value="price-desc">Price: High → Low</option>
+          <option value="name-asc">Name: A → Z</option>
+          <option value="name-desc">Name: Z → A</option>
+        </select>
+      </div>
+
+      <div className="col-md-6 d-flex align-items-end">
+        <button
+          type="button"
+          className="btn btn-outline-secondary w-100"
+          onClick={onClear}
+        >
+          Clear filters
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const FeaturedFlowers = () => {
   const cartCtx = useCart ? useCart() : null;
@@ -119,7 +263,6 @@ const FeaturedFlowers = () => {
       setPage(pageToLoad);
       setInitialLoaded(true);
     } catch (e) {
-      // Fallback to local if first load fails
       if (
         !initialLoaded &&
         Array.isArray(localProducts) &&
@@ -154,11 +297,9 @@ const FeaturedFlowers = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, category, badge, priceMin, priceMax, inStock, featuredOnly]);
 
-  // Client-side filter for fallback/local (if API ignores extra params)
+  // Client-side filter for fallback/local
   const filtered = useMemo(() => {
     let list = items;
-    // When API doesn't implement some filters (fallback path),
-    // apply client-side filtering:
     if (initialLoaded && !loading && (!total || total === items.length)) {
       if (featuredOnly) {
         list = list.filter(
@@ -186,7 +327,6 @@ const FeaturedFlowers = () => {
       if (priceMax)
         list = list.filter((p) => Number(p.price) <= Number(priceMax));
       if (inStock) list = list.filter((p) => Number(p.stock || 0) > 0);
-      // local sort
       list = [...list].sort((a, b) => {
         const pa = Number(a.price) || 0;
         const pb = Number(b.price) || 0;
@@ -249,7 +389,6 @@ const FeaturedFlowers = () => {
     setSort("featured");
   };
 
-  // ----- UI -----
   return (
     <div className="featured-page">
       <Helmet>
@@ -271,138 +410,105 @@ const FeaturedFlowers = () => {
       >
         <div className="container">
           <div className="row align-items-center g-4">
-            <div className="col-lg-7">
-              <h1 className="display-5 fw-bold">Featured Flowers</h1>
-              <p className="lead text-muted mb-0">
+            <div className="col-lg-7 text-center text-lg-start">
+              <h1
+                className="fw-bold"
+                style={{ fontSize: "clamp(1.8rem, 2.2vw + 1rem, 2.75rem)" }}
+              >
+                Featured Flowers
+              </h1>
+              <p
+                className="lead text-muted mb-0"
+                style={{ fontSize: "clamp(0.95rem, 1vw + 0.6rem, 1.15rem)" }}
+              >
                 Handpicked bestsellers, seasonal favorites, and new arrivals.
                 Same-day Dubai delivery.
               </p>
+
+              {/* Mobile controls: Filters button (offcanvas) */}
+              <div className="d-lg-none mt-3 d-flex gap-2 justify-content-center justify-content-lg-start">
+                <button
+                  className="btn btn-outline-dark"
+                  type="button"
+                  data-bs-toggle="offcanvas"
+                  data-bs-target="#filtersOffcanvas"
+                  aria-controls="filtersOffcanvas"
+                >
+                  Filters
+                </button>
+              </div>
             </div>
-            <div className="col-lg-5">
+
+            {/* Desktop filter card (hidden on mobile) */}
+            <div className="col-lg-5 d-none d-lg-block">
               <div className="bg-white shadow rounded-4 p-3 p-md-4">
-                <div className="row g-2">
-                  <div className="col-md-6">
-                    <label className="form-label small mb-1">Search</label>
-                    <input
-                      className="form-control"
-                      placeholder="Roses, tulips..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </div>
-                  <div className="col-6 col-md-3">
-                    <label className="form-label small mb-1">Min</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      placeholder="0"
-                      value={priceMin}
-                      min="0"
-                      onChange={(e) => setPriceMin(e.target.value)}
-                    />
-                  </div>
-                  <div className="col-6 col-md-3">
-                    <label className="form-label small mb-1">Max</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      placeholder="1000"
-                      value={priceMax}
-                      min="0"
-                      onChange={(e) => setPriceMax(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="col-md-6">
-                    <label className="form-label small mb-1">Category</label>
-                    <select
-                      className="form-select"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      <option value="">All</option>
-                      {allCats.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label small mb-1">Badge</label>
-                    <select
-                      className="form-select"
-                      value={badge}
-                      onChange={(e) => setBadge(e.target.value)}
-                    >
-                      <option value="">Any</option>
-                      {badges.map((b) => (
-                        <option key={b} value={b}>
-                          {b}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="col-6">
-                    <div className="form-check mt-2">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="instock"
-                        checked={inStock}
-                        onChange={(e) => setInStock(e.target.checked)}
-                      />
-                      <label className="form-check-label" htmlFor="instock">
-                        In stock only
-                      </label>
-                    </div>
-                  </div>
-                  <div className="col-6">
-                    <div className="form-check mt-2">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="featured"
-                        checked={featuredOnly}
-                        onChange={(e) => setFeaturedOnly(e.target.checked)}
-                      />
-                      <label className="form-check-label" htmlFor="featured">
-                        Featured only
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="col-md-6">
-                    <label className="form-label small mb-1">Sort by</label>
-                    <select
-                      className="form-select"
-                      value={sort}
-                      onChange={(e) => setSort(e.target.value)}
-                    >
-                      <option value="featured">Featured</option>
-                      <option value="price-asc">Price: Low → High</option>
-                      <option value="price-desc">Price: High → Low</option>
-                      <option value="name-asc">Name: A → Z</option>
-                      <option value="name-desc">Name: Z → A</option>
-                    </select>
-                  </div>
-
-                  <div className="col-md-6 d-flex align-items-end">
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary w-100"
-                      onClick={clearFilters}
-                    >
-                      Clear filters
-                    </button>
-                  </div>
-                </div>
+                <FilterControls
+                  allCats={allCats}
+                  search={search}
+                  setSearch={setSearch}
+                  priceMin={priceMin}
+                  setPriceMin={setPriceMin}
+                  priceMax={priceMax}
+                  setPriceMax={setPriceMax}
+                  category={category}
+                  setCategory={setCategory}
+                  badge={badge}
+                  setBadge={setBadge}
+                  inStock={inStock}
+                  setInStock={setInStock}
+                  featuredOnly={featuredOnly}
+                  setFeaturedOnly={setFeaturedOnly}
+                  sort={sort}
+                  setSort={setSort}
+                  onClear={clearFilters}
+                />
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Offcanvas (mobile/tablet) */}
+      <div
+        className="offcanvas offcanvas-end"
+        tabIndex="-1"
+        id="filtersOffcanvas"
+        aria-labelledby="filtersOffcanvasLabel"
+      >
+        <div className="offcanvas-header">
+          <h5 className="offcanvas-title" id="filtersOffcanvasLabel">
+            Filters
+          </h5>
+          <button
+            type="button"
+            className="btn-close"
+            data-bs-dismiss="offcanvas"
+            aria-label="Close"
+          ></button>
+        </div>
+        <div className="offcanvas-body">
+          <FilterControls
+            allCats={allCats}
+            search={search}
+            setSearch={setSearch}
+            priceMin={priceMin}
+            setPriceMin={setPriceMin}
+            priceMax={priceMax}
+            setPriceMax={setPriceMax}
+            category={category}
+            setCategory={setCategory}
+            badge={badge}
+            setBadge={setBadge}
+            inStock={inStock}
+            setInStock={setInStock}
+            featuredOnly={featuredOnly}
+            setFeaturedOnly={setFeaturedOnly}
+            sort={sort}
+            setSort={setSort}
+            onClear={clearFilters}
+          />
+        </div>
+      </div>
 
       {/* RESULTS BAR */}
       <section className="bg-white border-top border-bottom">
@@ -418,7 +524,24 @@ const FeaturedFlowers = () => {
               ) : null}{" "}
               items
             </div>
-            <div className="d-flex align-items-center gap-2">
+
+            <div className="d-flex align-items-center gap-2 ms-auto">
+              {/* Mobile sort (duplicate for convenience) */}
+              <div className="d-lg-none">
+                <select
+                  className="form-select form-select-sm"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  aria-label="Sort products"
+                >
+                  <option value="featured">Featured</option>
+                  <option value="price-asc">Price: Low → High</option>
+                  <option value="price-desc">Price: High → Low</option>
+                  <option value="name-asc">Name: A → Z</option>
+                  <option value="name-desc">Name: Z → A</option>
+                </select>
+              </div>
+
               {loading && (
                 <>
                   <div
@@ -505,7 +628,6 @@ const FeaturedFlowers = () => {
                         >
                           Add to Cart
                         </button>
-                        {/* No quick view on this page */}
                       </div>
                     </>
                   )}
@@ -515,7 +637,7 @@ const FeaturedFlowers = () => {
           ))}
         </div>
 
-        {/* Load More (server paging) */}
+        {/* Load More */}
         {items.length < total && (
           <div className="text-center mt-4">
             <button
