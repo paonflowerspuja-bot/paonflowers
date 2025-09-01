@@ -2,7 +2,7 @@ import React from "react";
 
 // -------------------- UTIL --------------------
 const IMG = (p) => {
-  if (!p) return "/src/assets/fallback.jpg";
+  if (!p) return "images/fallback.jpg";
   if (/^(https?:|data:|\/)/i.test(p)) return p;
   return "/" + String(p).replace(/^\/+/, "");
 };
@@ -50,13 +50,12 @@ const data = {
           "Community-minded, ethically run, and here to spread joy — one bouquet at a time.",
       },
     ],
-    backdrop: "/assets/about/backdrop.jpg",
+    backdrop: "/images/hero-bg.jpg",
   },
   detailSections: [
     {
       title: "Farm‑Fresh Quality",
-      image:
-        "/src/assets/Generalbookeytypes/a125212b-20cc-48c2-a5fd-86d9b6be904c.jpg",
+      image: "/images/farm-fresh-quality.jpg",
       body: [
         "No middlemen. We source directly from farms so bouquets arrive vibrant and long‑lasting.",
         "We obsess over design, freshness, and finishing so your gift looks beautiful on day one — and beyond.",
@@ -64,8 +63,7 @@ const data = {
     },
     {
       title: "Customization & Negotiation",
-      image:
-        "/src/assets/Valentineday/43e3f5f3-0477-4f6f-979c-007339ff8483.jpg",
+      image: "/images/customization.jpg",
       body: [
         "Tell us your vision — style, palette, size, add‑ons (balloons, teddy bears) — and your budget.",
         "We work flexibly and transparently, with negotiable pricing so you get exactly what you want.",
@@ -73,7 +71,7 @@ const data = {
     },
     {
       title: "Delivery in Dubai",
-      image: "/assets/about/delivery.jpg",
+      image: "/images/delivery.png",
       body: [
         "Free same‑day delivery within a 10 km radius of our locality.",
         "Dubai‑wide delivery for pre‑orders with 24‑hour notice (excluding a 10–12 km range).",
@@ -111,7 +109,7 @@ const data = {
     heading: "From Buds to Paon",
     sub: "OUR STORY",
     body: "Started with a simple idea: make premium, bespoke flowers accessible and unbelievably fresh for Dubai. Today, Paon Flowers blends artful design with local know‑how to deliver easier, fresher, kinder blooms.",
-    images: ["/assets/about/story-1.jpg", "/assets/about/story-2.jpg"],
+    images: ["/images/profile.png", "/images/profile.png"],
   },
   shopWithUs: {
     heading: "Come Shop With Us",
@@ -125,11 +123,6 @@ const data = {
         title: "All Flowers",
         image: "/assets/about/shop-all.jpg",
         cta: { label: "Shop All", href: "/shop" },
-      },
-      {
-        title: "Subscriptions",
-        image: "/assets/about/shop-subscriptions.jpg",
-        cta: { label: "Learn More", href: "/subscriptions" },
       },
     ],
   },

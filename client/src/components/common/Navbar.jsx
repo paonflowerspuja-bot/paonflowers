@@ -76,7 +76,9 @@ const Navbar = () => {
             </Link>
           </li>
 
-          <span>Help</span>
+          <Link to="/about" className="text-decoration-none text-muted">
+            About Us
+          </Link>
 
           <UserMenu />
 
