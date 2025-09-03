@@ -47,7 +47,6 @@
    Base / Reset
 ------------------------ */
 
-/* src/index.css (or global) */
 .btn-pink {
   background: #e91e63;
   color: #fff;
@@ -86,10 +85,15 @@ body {
 
 body {
   margin: 0;
-  background: linear-gradient(
+  /* background: linear-gradient(
     to bottom right,
     var(--off-white),
     var(--off-peach)
+  ); */
+  background: linear-gradient(
+    180deg,
+    rgba(255, 235, 240, 0.7),
+    rgba(255, 255, 255, 0.9)
   );
   color: var(--text-body);
   font-family: var(--font-body);
