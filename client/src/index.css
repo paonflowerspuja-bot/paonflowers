@@ -46,6 +46,33 @@
 /* -----------------------
    Base / Reset
 ------------------------ */
+
+/* src/index.css (or global) */
+.btn-pink {
+  background: #e91e63;
+  color: #fff;
+  border: none;
+}
+.btn-pink:hover {
+  filter: brightness(0.95);
+}
+.btn-outline-pink {
+  border: 1px solid #e91e63;
+  color: #e91e63;
+  background: transparent;
+}
+.btn-outline-pink:hover {
+  background: #e91e63;
+  color: #fff;
+}
+.text-pink {
+  color: #e91e63 !important;
+}
+.heading2 {
+  font-family: "Playfair Display", serif;
+  font-weight: 700;
+}
+
 *,
 *::before,
 *::after {
