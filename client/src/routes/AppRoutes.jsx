@@ -40,7 +40,7 @@ import StoreLocation from "../pages/location/StoreLocation";
 
 import Blog from "../pages/blog/Blog";
 import BlogPost from "../pages/blog/BlogPost";
-import NextDay from "../pages/NextDay/NextDay";
+
 import Weddings from "../pages/weddings/Weddings";
 import CustomFlowers from "../pages/customization/CustomFlowers";
 import FeaturedFlowers from "../pages/FeaturedFlowers";
@@ -77,7 +77,7 @@ const AppRoutes = () => {
         <Route path="delivery" element={<Delivery />} />
         <Route path="cart" element={<Cart />} />
         <Route path="store-location" element={<StoreLocation />} />
-        <Route path="nextday" element={<NextDay />} />
+       
         <Route path="weddings" element={<Weddings />} />
         <Route path="custom-flowers" element={<CustomFlowers />} />
         <Route path="about" element={<AboutPaonFlowers />} />

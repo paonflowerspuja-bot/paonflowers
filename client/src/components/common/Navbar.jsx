@@ -229,14 +229,7 @@ const Navbar = () => {
                       >
                         Shop All Flowers
                       </Link>
-                      <h6 className="mt-3">Add-ons</h6>
-                      <Link
-                        className="dropdown-item"
-                        to="/addons"
-                        onClick={closeCollapse}
-                      >
-                        Balloon & Teddy Bear
-                      </Link>
+                      
                     </div>
 
                     <div className="col-12 col-md-3 mb-3 mb-md-0">
@@ -411,15 +404,7 @@ const Navbar = () => {
                 </div>
               </li>
 
-              <li className="nav-item">
-                <Link
-                  className="nav-link"
-                  to="/nextday"
-                  onClick={closeCollapse}
-                >
-                  Next Day
-                </Link>
-              </li>
+             
 
               <li className="nav-item">
                 <Link
