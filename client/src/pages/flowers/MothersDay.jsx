@@ -6,7 +6,7 @@ export default function MothersDay() {
     <CategoryGridPage
       title="Mother's Day Flowers"
       description="Show love and gratitude with elegant bouquets and luxury boxes."
-      heroImg="/assets/MothersDay/hero.jpg"
+      heroImg="/images/mothersday-hero.jpg"
       category="Mother's Day"
       altFilters={[
         { key: "category", value: "Mothers Day" }, // no apostrophe fallback

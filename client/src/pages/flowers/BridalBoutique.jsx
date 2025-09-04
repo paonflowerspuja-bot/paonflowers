@@ -6,7 +6,7 @@ export default function BridalBoutique() {
     <CategoryGridPage
       title="Bridal Boutique"
       description="Bridal bouquets, boutonnières, and luxe arrangements for your big day."
-      heroImg="/assets/BridalBoutique/hero.jpg"
+      heroImg="/images/bridalboutique-hero.jpg"
       category="Bridal Boutique"
       altFilters={[
         { key: "category", value: "Bridal" },

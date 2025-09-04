@@ -91,7 +91,7 @@ const CategoryGridPage = ({
       <section
         className="d-flex align-items-center text-center text-white position-relative"
         style={{
-          backgroundImage: `url('${heroBg}')`,
+          backgroundImage: `url(${heroBg})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
           minHeight: "56vh",

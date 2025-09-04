@@ -6,7 +6,7 @@ export default function GraduationDay() {
     <CategoryGridPage
       title="Graduation Day Flowers"
       description="Celebrate their milestone with fresh, uplifting blooms—delivered across Dubai."
-      heroImg="/assets/GraduationDay/hero.jpg"
+      heroImg="/images/graduation-hero.jpg"
       category="Graduation Day"
       altFilters={[
         { key: "category", value: "Graduation" },

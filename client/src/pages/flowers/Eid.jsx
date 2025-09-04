@@ -1,25 +1,17 @@
 import React from "react";
-import { Container, Row, Col } from "react-bootstrap";
-import Card from "../../components/ui/Cards";
+import CategoryGridPage from "../../components/common/CategoryGridPage";
 
-const imagePaths = [
-  "/assets/Birthday/image1.jpg",
-  "/assets/Birthday/image2.jpg",
-];
-
-const Eid = () => {
+export default function Eid() {
   return (
-    <Container className="py-5">
-      <h2 className="mb-4 text-center">Eid Flowers</h2>
-      <Row>
-        {imagePaths.map((path, index) => (
-          <Col key={index} md={4} sm={6} xs={12} className="mb-4">
-            <Card image={path} title={`Flower ${index + 1}`} />
-          </Col>
-        ))}
-      </Row>
-    </Container>
+    <CategoryGridPage
+      title="Eid Flowers"
+      description="Celebrate Eid with our exquisite flower arrangements."
+      heroImg="/images/eid-hero.jpeg"
+      category="Eid"
+      altFilters={[
+        { key: "category", value: "Eid" },
+        { key: "occasion", value: "Eid" },
+      ]}
+    />
   );
-};
-
-export default Eid;
+}

@@ -6,7 +6,7 @@ export default function Valentine() {
     <CategoryGridPage
       title="Valentine's Day Flowers"
       description="Romantic bouquets and luxe boxes to say it from the heart. Same-day Dubai."
-      heroImg="/assets/Valentine/hero.jpg"
+      heroImg="/images/valentineday-hero.jpg"
       category="Valentine Day"
       altFilters={[
         { key: "category", value: "Valentine" },

@@ -50,7 +50,7 @@ const data = {
           "Community-minded, ethically run, and here to spread joy — one bouquet at a time.",
       },
     ],
-    backdrop: "/images/hero-bg.jpg",
+    backdrop: "/images/backdrop.jpg",
   },
   detailSections: [
     {

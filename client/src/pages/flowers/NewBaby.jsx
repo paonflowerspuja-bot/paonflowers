@@ -6,7 +6,7 @@ export default function NewBaby() {
     <CategoryGridPage
       title="New Baby Flowers"
       description="Soft pastels and gentle hues to welcome the little one. Same-day Dubai."
-      heroImg="/assets/NewBaby/hero.jpg"
+      heroImg="/images/newbaby-hero.jpg"
       category="New Baby"
       altFilters={[
         { key: "category", value: "Baby" },

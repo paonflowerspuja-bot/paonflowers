@@ -7,7 +7,7 @@ export default function Birthday() {
     <CategoryGridPage
       title="Birthday Flowers"
       description="Make their day extra special with hand-picked blooms. Same-day delivery across Dubai."
-      heroImg="/assets/Birthday/hero.jpg"
+      heroImg="/images/Birthday-hero.jpg"
       category="Birthday"
       altFilters={[{ key: "occasion", value: "Birthday" }]}
     />
