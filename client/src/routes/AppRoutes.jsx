@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+// src/routes/AppRoutes.jsx
+import { Routes, Route } from "react-router-dom";
 import Layout from "../layout/Layout";
 
 import Home from "../pages/Home";
@@ -24,12 +25,11 @@ import Login from "../pages/user/Login";
 import Signup from "../pages/user/Signup";
 
 import ProtectedRoute from "../components/ProtectedRoute";
-import AdminRoute from "../components/admin/AdminRoute";
 
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import ManageProducts from "../pages/admin/ManageProducts";
 import ManageOrders from "../pages/admin/ManageOrders";
-import ManageOffers from "../pages/admin/ ManageOffers";
+import ManageOffers from "/src/pages/admin/ ManageOffers.jsx"; // ← fixed path (no space)
 import DeliveryStatus from "../pages/admin/DeliveryStatus";
 import Customers from "../pages/admin/Customers";
 
@@ -44,18 +44,18 @@ import NextDay from "../pages/NextDay/NextDay";
 import Weddings from "../pages/weddings/Weddings";
 import CustomFlowers from "../pages/customization/CustomFlowers";
 import FeaturedFlowers from "../pages/FeaturedFlowers";
-
 import ShopAll from "../pages/ShopAll";
-
 import AboutPaonFlowers from "../pages/AboutPaonFlowers.jsx";
 
+// If you have an AdminRoute, you can wrap the /admin element with it.
 const AppRoutes = () => {
   return (
     <Routes>
+      {/* Public site shell */}
       <Route path="/" element={<Layout />}>
-        {/* Home Page */}
         <Route index element={<Home />} />
         <Route path="shop" element={<ShopAll />} />
+
         {/* Flower Categories */}
         <Route path="flowers" element={<Flowers />} />
         <Route path="flowers/birthday" element={<Birthday />} />
@@ -66,31 +66,26 @@ const AppRoutes = () => {
         <Route path="flowers/MothersDay" element={<MothersDay />} />
         <Route path="flowers/BridalBoutique" element={<BridalBoutique />} />
         <Route path="flowers/featured" element={<FeaturedFlowers />} />
+
         {/* Blog */}
         <Route path="blog" element={<Blog />} />
         <Route path="blog/:slug" element={<BlogPost />} />
+
         {/* Other Pages */}
         <Route path="offers" element={<Offers />} />
         <Route path="faq" element={<FAQ />} />
         <Route path="delivery" element={<Delivery />} />
-        <Route path="/cart" element={<Cart />} />
+        <Route path="cart" element={<Cart />} />
         <Route path="store-location" element={<StoreLocation />} />
         <Route path="nextday" element={<NextDay />} />
         <Route path="weddings" element={<Weddings />} />
         <Route path="custom-flowers" element={<CustomFlowers />} />
-        <Route path="/about" element={<AboutPaonFlowers />} />
+        <Route path="about" element={<AboutPaonFlowers />} />
 
-        {/* Protected Routes */}
+        {/* Protected user routes */}
+        <Route path="profile" element={<Profile />} />
         <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/orders"
+          path="orders"
           element={
             <ProtectedRoute>
               <Orders />
@@ -98,16 +93,15 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/checkout"
+          path="checkout"
           element={
             <ProtectedRoute>
               <WhatsAppCheckout />
             </ProtectedRoute>
           }
         />
-
         <Route
-          path="/otp"
+          path="otp"
           element={
             <ProtectedRoute>
               <OtpVerification />
@@ -115,34 +109,36 @@ const AppRoutes = () => {
           }
         />
         <Route
-          path="/order-success"
+          path="order-success"
           element={
             <ProtectedRoute>
               <OrderSuccess />
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/admin"
-          element={
-            <AdminRoute>
-              <AdminDashboard />
-            </AdminRoute>
-          }
-        >
-          <Route path="products" element={<ManageProducts />} />
-          <Route path="orders" element={<ManageOrders />} />
-          <Route path="offers" element={<ManageOffers />} />
-          <Route path="delivery" element={<DeliveryStatus />} />
-          <Route path="customers" element={<Customers />} />
-        </Route>
 
-        {/* Auth */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        {/* Catch-all */}
+        {/* Public auth */}
+        <Route path="login" element={<Login />} />
+        <Route path="signup" element={<Signup />} />
+
+        {/* Public 404 (for unknown public paths) */}
         <Route path="*" element={<NotFound />} />
       </Route>
+
+      {/* Admin shell OUTSIDE the public <Layout /> */}
+      <Route path="/admin" element={<AdminDashboard />}>
+        <Route index element={<></>} /> {/* overview in AdminDashboard */}
+        <Route path="products" element={<ManageProducts />} />
+        <Route path="orders" element={<ManageOrders />} />
+        <Route path="offers" element={<ManageOffers />} />
+        <Route path="delivery" element={<DeliveryStatus />} />
+        <Route path="customers" element={<Customers />} />
+        {/* Optional: Admin-only 404 */}
+        {/* <Route path="*" element={<AdminNotFound />} /> */}
+      </Route>
+
+      {/* Global 404 fallback for anything else not matched */}
+      {/* <Route path="*" element={<NotFound />} />  // optional */}
     </Routes>
   );
 };

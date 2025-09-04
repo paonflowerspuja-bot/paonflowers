@@ -43,6 +43,36 @@
   --pfw-gap: 24px;
 }
 
+.btn-pink {
+  background: #e91e63 !important;
+  color: #fff !important;
+  border: none !important;
+}
+.btn-pink:hover {
+  filter: brightness(0.95);
+}
+
+.stat-card .stat-label {
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+.stat-card .stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.stat-card .stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+  color: #e91e63;
+}
+.bg-pink-subtle {
+  background: rgba(233, 30, 99, 0.13);
+}
+
 /* -----------------------
    Base / Reset
 ------------------------ */
@@ -555,24 +585,31 @@ textarea.form-control {
 /* -----------------------
    Admin
 ------------------------ */
-.admin-dashboard {
+
+/* Active link + subtle polish */
+.admin-nav-link {
+  display: block;
+  color: #e9e9ef;
+  text-decoration: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+}
+.admin-nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.admin-nav-link.active {
+  background: rgba(233, 30, 99, 0.22);
+  color: #fff;
+}
+
+.admin-shell {
   min-height: 100vh;
-  display: flex;
+  background: #f7f7fb;
 }
 .admin-sidebar {
-  width: 250px;
-  background: var(--paon-brand);
-  color: white;
-  min-height: 100vh;
-}
-.admin-sidebar a {
-  display: block;
-  color: white;
-  padding: 10px;
-  text-decoration: none;
-}
-.admin-sidebar a:hover {
-  background: #c2185b;
+  width: 260px;
+  background: linear-gradient(180deg, #1f1f29, #2b2b3a);
 }
 
 /* -----------------------

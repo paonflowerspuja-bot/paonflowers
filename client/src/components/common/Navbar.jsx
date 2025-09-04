@@ -446,19 +446,6 @@ const Navbar = () => {
                   Blog
                 </Link>
               </li>
-
-              {/* Admin (main nav, all screens) */}
-              {showAdmin && (
-                <li className="nav-item">
-                  <Link
-                    className="nav-link"
-                    to="/admin"
-                    onClick={closeCollapse}
-                  >
-                    Admin
-                  </Link>
-                </li>
-              )}
             </ul>
           </div>
         </div>
