@@ -1,13 +1,54 @@
+// src/pages/AboutPaonFlowers.jsx
 import React from "react";
 
 // -------------------- UTIL --------------------
 const IMG = (p) => {
-  if (!p) return "images/fallback.jpg";
+  if (!p) return "/images/fallback.jpg";
   if (/^(https?:|data:|\/)/i.test(p)) return p;
   return "/" + String(p).replace(/^\/+/, "");
 };
 
-// -------------------- DATA --------------------
+// Generic aspect box for easy ratio/height/rounding control
+const AspectBox = ({
+  ratio = "16/9",
+  maxH,
+  rounded = "1rem",
+  className = "",
+  style = {},
+  children,
+}) => (
+  <div
+    className={`overflow-hidden shadow ${className}`}
+    style={{
+      aspectRatio: ratio,
+      maxHeight: maxH ? `${maxH}px` : undefined,
+      borderRadius: rounded,
+      ...style,
+    }}
+  >
+    {children}
+  </div>
+);
+
+// Image with object-fit and object-position controls
+const SmartImg = ({
+  src,
+  alt,
+  fit = "cover",
+  pos = "50% 50%",
+  className = "",
+  style = {},
+}) => (
+  <img
+    src={IMG(src)}
+    alt={alt}
+    className={`w-100 h-100 ${className}`}
+    style={{ objectFit: fit, objectPosition: pos, ...style }}
+    loading="lazy"
+  />
+);
+
+// -------------------- DATA (EDIT THESE) --------------------
 const data = {
   hero: {
     title: "Hi, We’re Paon Flowers",
@@ -15,11 +56,20 @@ const data = {
       "A Dubai-based premium flower studio crafting bespoke bouquets for every occasion — with flexible customization, negotiable pricing, and a happiness-first mindset.",
     image: "/images/paonshop.jpeg",
     cta: { label: "Shop Best Sellers", href: "/shop" },
+    // Tuners:
+    ratio: "4/3",
+    maxH: 560,
+    fit: "cover",
+    pos: "50% 45%",
+    rounded: "16px",
+    minSectionHeight: "56vh", // overall hero section min height
   },
+
   guarantee: {
     title: "Happiness Guarantee",
     text: "We want your flowers to be perfect. If anything falls short, we’ll make it right with a replacement or credit — because your joy is our benchmark.",
   },
+
   mission: {
     leftImage: "/images/rose.jpg",
     heading: "Our Mission",
@@ -27,7 +77,14 @@ const data = {
       "We’re obsessed with the beauty of customization. Every bouquet can be tailored to your vision and budget — and yes, prices are negotiable.",
       "Based in Dubai, we serve the local community with exquisite designs for every occasion. Our flexible approach and friendly consultation ensure you get exactly what you desire.",
     ],
+    // Tuners:
+    ratio: "4/3",
+    maxH: 480,
+    fit: "cover",
+    pos: "50% 50%",
+    rounded: "14px",
   },
+
   difference: {
     heading: "Our Difference",
     cards: [
@@ -39,7 +96,7 @@ const data = {
       },
       {
         icon: "🌿",
-        title: "Farm‑Fresh Quality",
+        title: "Farm-Fresh Quality",
         blurb:
           "Premium stems sourced from trusted farms so arrangements stay fresher for longer.",
       },
@@ -52,33 +109,50 @@ const data = {
     ],
     backdrop: "/images/backdrop.jpg",
   },
+
   detailSections: [
     {
-      title: "Farm‑Fresh Quality",
+      title: "Farm-Fresh Quality",
       image: "/images/farm-fresh-quality.jpg",
       body: [
-        "No middlemen. We source directly from farms so bouquets arrive vibrant and long‑lasting.",
+        "No middlemen. We source directly from farms so bouquets arrive vibrant and long-lasting.",
         "We obsess over design, freshness, and finishing so your gift looks beautiful on day one — and beyond.",
       ],
+      ratio: "4/3",
+      maxH: 460,
+      fit: "cover",
+      pos: "50% 50%",
+      rounded: "14px",
     },
     {
       title: "Customization & Negotiation",
-      image: "/images/customization.jpg",
+      image: "/images/customization-about.jpg",
       body: [
-        "Tell us your vision — style, palette, size, add‑ons (balloons, teddy bears) — and your budget.",
+        "Tell us your vision — style, palette, size, add-ons (balloons, teddy bears) — and your budget.",
         "We work flexibly and transparently, with negotiable pricing so you get exactly what you want.",
       ],
+      ratio: "4/3",
+      maxH: 540,
+      fit: "cover",
+      pos: "center center",
+      rounded: "14px",
     },
     {
       title: "Delivery in Dubai",
       image: "/images/delivery.png",
       body: [
-        "Free same‑day delivery within a 10 km radius of our locality.",
-        "Dubai‑wide delivery for pre‑orders with 24‑hour notice (excluding a 10–12 km range).",
-        "Scheduling is available for pre‑orders. Deliveries are coordinated via Google Maps and charges may apply by location.",
+        "Free same-day delivery within a 10 km radius of our locality.",
+        "Dubai-wide delivery for pre-orders with 24-hour notice (excluding a 10–12 km range).",
+        "Scheduling is available for pre-orders. Deliveries are coordinated via Google Maps and charges may apply by location.",
       ],
+      ratio: "16/9",
+      maxH: 420,
+      fit: "fill", // use contain for UI/illustrations if needed
+      pos: "50% 50%",
+      rounded: "14px",
     },
   ],
+
   trust: {
     heading: "Trusted & Transparent",
     body: [
@@ -87,6 +161,7 @@ const data = {
       "(Flowers are the whispers of nature, painting joy on hearts.)",
     ],
   },
+
   payments: {
     heading: "Payments & Order Processing",
     bullets: [
@@ -96,21 +171,27 @@ const data = {
       "Order processing requires a contact number and call verification.",
     ],
   },
+
   offers: {
     heading: "Offers & Occasions",
     bullets: [
-      "Occasion‑wise offers across Mother’s Day, Graduation, Valentine’s Day, Women’s Day, Eid, and more.",
+      "Occasion-wise offers across Mother’s Day, Graduation, Valentine’s Day, Women’s Day, Eid, and more.",
       "Special vouchers for regular customers.",
       "Blog, FAQs, and Terms & Conditions pages for clarity and support.",
-      "Multi‑lingual support (Arabic & English) — product page content available in both languages.",
+      "Multi-lingual support (Arabic & English) — product page content available in both languages.",
     ],
   },
+
   story: {
     heading: "From Buds to Paon",
     sub: "OUR STORY",
-    body: "Started with a simple idea: make premium, bespoke flowers accessible and unbelievably fresh for Dubai. Today, Paon Flowers blends artful design with local know‑how to deliver easier, fresher, kinder blooms.",
+    body: "Started with a simple idea: make premium, bespoke flowers accessible and unbelievably fresh for Dubai. Today, Paon Flowers blends artful design with local know-how to deliver easier, fresher, kinder blooms.",
     images: ["/images/profile.png", "/images/profile.png"],
+    // Tuners for story pics:
+    ratio: "1/1",
+    rounded: "12px",
   },
+
   shopWithUs: {
     heading: "Come Shop With Us",
     items: [
@@ -118,11 +199,13 @@ const data = {
         title: "Best Sellers",
         image: "/assets/about/shop-best.jpg",
         cta: { label: "Shop Now", href: "/shop/best-sellers" },
+        circleSize: 240, // px (change per card)
       },
       {
         title: "All Flowers",
         image: "/assets/about/shop-all.jpg",
         cta: { label: "Shop All", href: "/shop" },
+        circleSize: 220,
       },
     ],
   },
@@ -133,7 +216,10 @@ export default function AboutPaonFlowers() {
   return (
     <main className="about-paon">
       {/* HERO */}
-      <section className="container-fluid bg-dark text-light py-5">
+      <section
+        className="container-fluid bg-dark text-light py-5 hero-section"
+        style={{ minHeight: data.hero.minSectionHeight || "56vh" }}
+      >
         <div className="container py-3">
           <div className="row g-4 align-items-center">
             <div className="col-12 col-lg-6">
@@ -144,13 +230,18 @@ export default function AboutPaonFlowers() {
               </a>
             </div>
             <div className="col-12 col-lg-6">
-              <div className="ratio ratio-16x9 rounded-4 overflow-hidden shadow">
-                <img
-                  src={IMG(data.hero.image)}
+              <AspectBox
+                ratio={data.hero.ratio}
+                maxH={data.hero.maxH}
+                rounded={data.hero.rounded}
+              >
+                <SmartImg
+                  src={data.hero.image}
                   alt="Bouquet hero"
-                  className="w-100 h-100 object-fit-cover"
+                  fit={data.hero.fit}
+                  pos={data.hero.pos}
                 />
-              </div>
+              </AspectBox>
             </div>
           </div>
         </div>
@@ -168,13 +259,18 @@ export default function AboutPaonFlowers() {
       <section className="container py-5">
         <div className="row g-4 align-items-center">
           <div className="col-12 col-lg-6">
-            <div className="ratio ratio-4x3 rounded-4 overflow-hidden shadow-sm">
-              <img
-                src={IMG(data.mission.leftImage)}
+            <AspectBox
+              ratio={data.mission.ratio}
+              maxH={data.mission.maxH}
+              rounded={data.mission.rounded}
+            >
+              <SmartImg
+                src={data.mission.leftImage}
                 alt="Smiling with bouquet"
-                className="w-100 h-100 object-fit-cover"
+                fit={data.mission.fit}
+                pos={data.mission.pos}
               />
-            </div>
+            </AspectBox>
           </div>
           <div className="col-12 col-lg-6">
             <h3 className="h4 fw-bold mb-3">{data.mission.heading}</h3>
@@ -229,13 +325,18 @@ export default function AboutPaonFlowers() {
             }`}
           >
             <div className="col-12 col-lg-6">
-              <div className="ratio ratio-4x3 rounded-4 overflow-hidden shadow-sm">
-                <img
-                  src={IMG(sec.image)}
+              <AspectBox
+                ratio={sec.ratio || "4/3"}
+                maxH={sec.maxH || 460}
+                rounded={sec.rounded || "14px"}
+              >
+                <SmartImg
+                  src={sec.image}
                   alt={sec.title}
-                  className="w-100 h-100 object-fit-cover"
+                  fit={sec.fit || "cover"}
+                  pos={sec.pos || "50% 50%"}
                 />
-              </div>
+              </AspectBox>
             </div>
             <div className="col-12 col-lg-6">
               <h3 className="h4 fw-bold mb-3">{sec.title}</h3>
@@ -310,13 +411,13 @@ export default function AboutPaonFlowers() {
               <div className="row g-3">
                 {data.story.images.map((im, i) => (
                   <div className="col-6" key={i}>
-                    <div className="ratio ratio-1x1 rounded-4 overflow-hidden shadow">
-                      <img
-                        src={IMG(im)}
-                        alt={`Story ${i + 1}`}
-                        className="w-100 h-100 object-fit-cover"
-                      />
-                    </div>
+                    <AspectBox
+                      ratio={data.story.ratio || "1/1"}
+                      rounded={data.story.rounded || "12px"}
+                      className="shadow"
+                    >
+                      <SmartImg src={im} alt={`Story ${i + 1}`} />
+                    </AspectBox>
                   </div>
                 ))}
               </div>
@@ -336,13 +437,12 @@ export default function AboutPaonFlowers() {
               <div className="text-center p-3 h-100 d-flex flex-column">
                 <div
                   className="rounded-circle overflow-hidden shadow mx-auto"
-                  style={{ width: 220, height: 220 }}
+                  style={{
+                    width: (item.circleSize || 220) + "px",
+                    height: (item.circleSize || 220) + "px",
+                  }}
                 >
-                  <img
-                    src={IMG(item.image)}
-                    alt={item.title}
-                    className="w-100 h-100 object-fit-cover"
-                  />
+                  <SmartImg src={item.image} alt={item.title} fit="cover" />
                 </div>
                 <h4 className="h6 fw-bold mt-3">{item.title}</h4>
                 <a
