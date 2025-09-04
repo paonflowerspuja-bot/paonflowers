@@ -3,25 +3,36 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { gsap } from "gsap";
 import { useCart } from "../../context/CartContext";
+import { useAuth } from "../../context/AuthContext";
 import UserMenu from "../../pages/user/profileIcon/UserMenu";
+
+// Robust dev flag: show admin in dev if VITE_DEV_ADMIN=true OR Vite dev mode
+const devAdmin =
+  String(import.meta.env.VITE_DEV_ADMIN ?? "")
+    .trim()
+    .toLowerCase() === "true" || !!import.meta.env.DEV;
 
 const Navbar = () => {
   const topHeaderRef = useRef(null);
   const mainNavRef = useRef(null);
   const logoRef = useRef(null);
   const lastScrollY = useRef(0);
-  const scrollingLock = useRef(false); // simple throttle
+  const scrollingLock = useRef(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
 
-  // Cart count (defensive default)
+  // Auth (decide if Admin link should render)
+  const { user } = useAuth();
+  const showAdmin = devAdmin || user?.role === "admin";
+
+  // Cart count (defensive)
   const { state } = useCart();
   const cartCount = (state?.cart || []).reduce(
     (total, item) => total + (Number(item?.quantity) || 1),
     0
   );
 
-  // GSAP quick setters for smooth transforms
+  // GSAP quick setters
   const quickTopY = useRef(null);
   const quickLogoH = useRef(null);
 
@@ -31,7 +42,7 @@ const Navbar = () => {
     if (mainNavRef.current) gsap.set(mainNavRef.current, { y: 0 });
     if (logoRef.current) gsap.set(logoRef.current, { height: 80 });
 
-    // Create quickTo setters
+    // Quick setters
     if (topHeaderRef.current) {
       quickTopY.current = gsap.quickTo(topHeaderRef.current, "y", {
         duration: 0.35,
@@ -45,7 +56,7 @@ const Navbar = () => {
       });
     }
 
-    // Scroll handler with simple throttle via rAF
+    // Scroll handler (throttled via rAF)
     const onScroll = () => {
       if (scrollingLock.current) return;
       scrollingLock.current = true;
@@ -55,21 +66,13 @@ const Navbar = () => {
         const goingDown = y > lastScrollY.current;
         const pastHeader = y > 80;
 
-        // Toggle top header
         if (quickTopY.current) {
-          // Hide when scrolling down beyond threshold, show when scrolling up / near top
           if (goingDown && pastHeader) quickTopY.current("-100%");
           else quickTopY.current("0%");
         }
+        if (quickLogoH.current) quickLogoH.current(pastHeader ? 56 : 80);
 
-        // Shrink logo after small scroll for a sleeker, premium feel
-        if (quickLogoH.current) {
-          quickLogoH.current(pastHeader ? 56 : 80);
-        }
-
-        // Add shadow to main nav when scrolled
         setIsScrolled(pastHeader);
-
         lastScrollY.current = y;
         scrollingLock.current = false;
       });
@@ -82,19 +85,12 @@ const Navbar = () => {
   // Auto-close collapsed navbar on route change (mobile UX)
   useEffect(() => {
     const nav = document.getElementById("mainNavbar");
-    if (nav && nav.classList.contains("show")) {
-      nav.classList.remove("show");
-    }
-    // also scroll to top for cleaner transitions
-    // window.scrollTo({ top: 0, behavior: "instant" });
+    if (nav && nav.classList.contains("show")) nav.classList.remove("show");
   }, [location.pathname]);
 
-  // Manually close collapse when clicking a link (if needed)
   const closeCollapse = () => {
     const nav = document.getElementById("mainNavbar");
-    if (nav && nav.classList.contains("show")) {
-      nav.classList.remove("show");
-    }
+    if (nav && nav.classList.contains("show")) nav.classList.remove("show");
   };
 
   return (
@@ -119,16 +115,13 @@ const Navbar = () => {
 
         {/* Right-side icons (absolute) */}
         <div className="d-flex gap-3 align-items-center position-absolute end-0 me-3">
-          {/* Hide extra links on small screens to avoid overlap with toggler */}
-          <li className="list-unstyled d-none d-lg-block">
-            <Link
-              to="/store-location"
-              className="text-decoration-none text-muted"
-              onClick={closeCollapse}
-            >
-              Store Location
-            </Link>
-          </li>
+          <Link
+            to="/store-location"
+            className="text-decoration-none text-muted d-none d-lg-inline"
+            onClick={closeCollapse}
+          >
+            Store Location
+          </Link>
 
           <Link
             to="/about"
@@ -140,6 +133,18 @@ const Navbar = () => {
 
           {/* Profile / Auth */}
           <UserMenu />
+
+          {/* Admin (top bar, md+) */}
+          {showAdmin && (
+            <Link
+              to="/admin"
+              className="text-decoration-none text-muted d-none d-md-inline"
+              onClick={closeCollapse}
+              aria-label="Admin"
+            >
+              Admin
+            </Link>
+          )}
 
           {/* Cart */}
           <Link
@@ -202,7 +207,7 @@ const Navbar = () => {
                 </Link>
               </li>
 
-              {/* All Flowers Mega Menu (desktop-friendly) */}
+              {/* All Flowers Mega Menu */}
               <li className="nav-item dropdown position-static">
                 <Link
                   className="nav-link dropdown-toggle"
@@ -341,7 +346,7 @@ const Navbar = () => {
               </li>
 
               {/* Occasions */}
-              <li className="nav-item dropdown  position-lg-relative">
+              <li className="nav-item dropdown position-lg-relative">
                 <Link
                   className="nav-link dropdown-toggle"
                   to="#"
@@ -374,7 +379,7 @@ const Navbar = () => {
               </li>
 
               {/* Same Day */}
-              <li className="nav-item dropdown  position-lg-relative">
+              <li className="nav-item dropdown position-lg-relative">
                 <Link
                   className="nav-link dropdown-toggle"
                   to="#"
@@ -441,6 +446,19 @@ const Navbar = () => {
                   Blog
                 </Link>
               </li>
+
+              {/* Admin (main nav, all screens) */}
+              {showAdmin && (
+                <li className="nav-item">
+                  <Link
+                    className="nav-link"
+                    to="/admin"
+                    onClick={closeCollapse}
+                  >
+                    Admin
+                  </Link>
+                </li>
+              )}
             </ul>
           </div>
         </div>
