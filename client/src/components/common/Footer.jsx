@@ -84,23 +84,18 @@ const Footer = () => {
           <Col xs={12} md={6} lg={3} className="mb-4">
             <h6>Contact Us</h6>
             <p>Email: Santosh@paonflowers.com</p>
-            <p>Phone: +971 56 408 2871</p>
+            <p>Phone: ‪+971 54 507 8365‬</p>
             <p>Al Khawaneej 2, Abdulla Shakbot Ali Saeed Bld. Dubai, U.A.E</p>
           </Col>
         </Row>
         <div className="d-flex justify-content-center mt-4 mb-2 gap-3 fs-5 text-dark">
-          <Link className="footer-link" to="#">
-            <FaTwitter />
-          </Link>
           <Link
             className="footer-link"
             to="https://www.facebook.com/share/16qQ5BgtfT/?mibextid=wwXIfr"
           >
             <FaFacebookF />
           </Link>
-          <Link className="footer-link" to="#">
-            <FaPinterestP />
-          </Link>
+
           <Link
             className="footer-link"
             to="https://www.instagram.com/paonflowers?igsh=M3FsMzY0aGdzbmt3&utm_source=qr"
