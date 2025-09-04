@@ -73,7 +73,12 @@ const Home = () => {
               Not sure what to get them? Flowers are always a good idea.
             </p>
             <div className="d-grid gap-2 d-sm-inline-block">
-              <button className="btn-pink">Shop Birthday</button>
+              <Link
+                to="/flowers/birthday"
+                className="btn-pink text-decoration-none"
+              >
+                Shop Birthday
+              </Link>
             </div>
           </div>
           <div className="col-md-6 mb-4 mb-md-0 p-0">

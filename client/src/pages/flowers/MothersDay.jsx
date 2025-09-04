@@ -1,25 +1,18 @@
 import React from "react";
-import { Container, Row, Col } from "react-bootstrap";
-import Card from "../../components/ui/Cards";
+import CategoryGridPage from "../../components/common/CategoryGridPage";
 
-const imagePaths = [
-  "/assets/Birthday/image1.jpg",
-  "/assets/Birthday/image2.jpg",
-];
-
-const MothersDay = () => {
+export default function MothersDay() {
   return (
-    <Container className="py-5">
-      <h2 className="mb-4 text-center">Mother's Day Flowers</h2>
-      <Row>
-        {imagePaths.map((path, index) => (
-          <Col key={index} md={4} sm={6} xs={12} className="mb-4">
-            <Card image={path} title={`Flower ${index + 1}`} />
-          </Col>
-        ))}
-      </Row>
-    </Container>
+    <CategoryGridPage
+      title="Mother's Day Flowers"
+      description="Show love and gratitude with elegant bouquets and luxury boxes."
+      heroImg="/assets/MothersDay/hero.jpg"
+      category="Mother's Day"
+      altFilters={[
+        { key: "category", value: "Mothers Day" }, // no apostrophe fallback
+        { key: "occasion", value: "Mother's Day" },
+        { key: "occasion", value: "Mothers Day" },
+      ]}
+    />
   );
-};
-
-export default MothersDay;
+}

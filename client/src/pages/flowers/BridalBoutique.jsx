@@ -1,25 +1,17 @@
 import React from "react";
-import { Container, Row, Col } from "react-bootstrap";
-import Card from "../../components/ui/Cards";
+import CategoryGridPage from "../../components/common/CategoryGridPage";
 
-const imagePaths = [
-  "/assets/Birthday/image1.jpg",
-  "/assets/Birthday/image2.jpg",
-];
-
-const BridalBoutique = () => {
+export default function BridalBoutique() {
   return (
-    <Container className="py-5">
-      <h2 className="mb-4 text-center">Bridal Boutique Flowers</h2>
-      <Row>
-        {imagePaths.map((path, index) => (
-          <Col key={index} md={4} sm={6} xs={12} className="mb-4">
-            <Card image={path} title={`Flower ${index + 1}`} />
-          </Col>
-        ))}
-      </Row>
-    </Container>
+    <CategoryGridPage
+      title="Bridal Boutique"
+      description="Bridal bouquets, boutonnières, and luxe arrangements for your big day."
+      heroImg="/assets/BridalBoutique/hero.jpg"
+      category="Bridal Boutique"
+      altFilters={[
+        { key: "category", value: "Bridal" },
+        { key: "occasion", value: "Bridal Boutique" },
+      ]}
+    />
   );
-};
-
-export default BridalBoutique;
+}

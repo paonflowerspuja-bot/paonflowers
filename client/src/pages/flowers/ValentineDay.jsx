@@ -1,25 +1,18 @@
 import React from "react";
-import { Container, Row, Col } from "react-bootstrap";
-import Card from "../../components/ui/Cards";
+import CategoryGridPage from "../../components/common/CategoryGridPage";
 
-const imagePaths = [
-  "/assets/Birthday/image1.jpg",
-  "/assets/Birthday/image2.jpg",
-];
-
-const ValentineDay = () => {
+export default function Valentine() {
   return (
-    <Container className="py-5">
-      <h2 className="mb-4 text-center">Valentine's Day Flowers</h2>
-      <Row>
-        {imagePaths.map((path, index) => (
-          <Col key={index} md={4} sm={6} xs={12} className="mb-4">
-            <Card image={path} title={`Flower ${index + 1}`} />
-          </Col>
-        ))}
-      </Row>
-    </Container>
+    <CategoryGridPage
+      title="Valentine's Day Flowers"
+      description="Romantic bouquets and luxe boxes to say it from the heart. Same-day Dubai."
+      heroImg="/assets/Valentine/hero.jpg"
+      category="Valentine Day"
+      altFilters={[
+        { key: "category", value: "Valentine" },
+        { key: "occasion", value: "Valentine Day" },
+        { key: "occasion", value: "Valentine's Day" },
+      ]}
+    />
   );
-};
-
-export default ValentineDay;
+}
