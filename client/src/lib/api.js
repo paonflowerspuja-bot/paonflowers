@@ -1,5 +1,5 @@
 const BASE = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5173/api"
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api"
 ).replace(/\/+$/, "");
 export const api = {
   async get(p, init) {
