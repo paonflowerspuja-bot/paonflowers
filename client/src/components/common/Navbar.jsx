@@ -229,7 +229,6 @@ const Navbar = () => {
                       >
                         Shop All Flowers
                       </Link>
-                      
                     </div>
 
                     <div className="col-12 col-md-3 mb-3 mb-md-0">
@@ -243,14 +242,14 @@ const Navbar = () => {
                       </Link>
                       <Link
                         className="dropdown-item"
-                        to="/flowers/collections/balloons"
+                        to="/flowers/addons/balloons"
                         onClick={closeCollapse}
                       >
                         Balloons
                       </Link>
                       <Link
                         className="dropdown-item"
-                        to="/flowers/collections/teddy-bear"
+                        to="/flowers/addons/teddy-bear"
                         onClick={closeCollapse}
                       >
                         Teddy Bear
@@ -403,8 +402,6 @@ const Navbar = () => {
                   ))}
                 </div>
               </li>
-
-             
 
               <li className="nav-item">
                 <Link

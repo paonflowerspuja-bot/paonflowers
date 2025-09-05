@@ -1,8 +1,9 @@
+// src/pages/ShopAll.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import gsap from "gsap";
 import { useCart } from "/src/context/CartContext.jsx";
-import localProducts from "../data/productsData"; // fallback data
+import localProducts from "../data/productsData"; // fallback only
 
 const PAGE_SIZE = 12;
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ""; // e.g. https://api.example.com
@@ -17,15 +18,14 @@ const formatCurrency = (n) =>
     maximumFractionDigits: 2,
   }).format(Number(n) || 0);
 
-// Helper to build image URLs safely (supports http(s), data:, and local assets with spaces)
+// Image helper (supports http(s), data:, /assets)
 const IMG = (p) => {
-  if (!p) return "/public/images/rose.jpg";
-  if (/^(https?:|data:)/i.test(p)) return p; // absolute urls or data URI
+  if (!p) return "/assets/rose.jpg";
+  if (/^(https?:|data:)/i.test(p)) return p;
   if (p.startsWith("/")) return encodeURI(p);
   return encodeURI(`/assets/${p}`);
 };
 
-// Stable, sluggy id fallback (avoids random ids on each add)
 const slug = (s = "") =>
   s
     .toString()
@@ -33,72 +33,124 @@ const slug = (s = "") =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
 
-const ShopAll = () => {
-  const { dispatch } = useCart();
+const mapSortToServer = (ui) => {
+  switch (ui) {
+    case "price-asc":
+      return "price";
+    case "price-desc":
+      return "-price";
+    case "name-asc":
+      return "name";
+    case "name-desc":
+      return "-name";
+    default:
+      return "-createdAt"; // featured/newest
+  }
+};
 
-  // Refs for animations
+const normalizeProduct = (p) => {
+  if (!p) return null;
+  const img =
+    (Array.isArray(p.images) && (p.images[0]?.url || p.images[0])) ||
+    p.image ||
+    p.img;
+  return {
+    id: p._id || p.id || p.slug || slug(p.name || p.title || "flower"),
+    _id: p._id,
+    slug: p.slug,
+    name: p.name || p.title || "Flower",
+    image: img,
+    price: p.price ?? 0,
+    mrp: p.mrp,
+    category: p.category || "Bouquet",
+    badge: p.badge,
+    isNew: p.isNew,
+    bestseller: p.bestseller,
+    stock: typeof p.stock === "number" ? p.stock : 100,
+  };
+};
+
+const ShopAll = () => {
+  const { dispatch, addToCart: ctxAdd } = useCart?.() || {};
+
+  // GSAP refs
   const heroRef = useRef(null);
   const promoRefs = useRef([]);
   const sortRef = useRef(null);
   const cardRefs = useRef([]);
 
-  // Local state
+  // Data state
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE); // used for local fallback only
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE); // local fallback only
   const [sortBy, setSortBy] = useState("featured");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ---- Optional API wiring (server paging) ----
+  // Filters
+  const [q, setQ] = useState("");
+  const [min, setMin] = useState("");
+  const [max, setMax] = useState("");
+
+  // prevent race conditions across fast clicks / rerenders
+  const reqIdRef = useRef(0);
+
+  // ---- API paging ----
   const fetchPage = async (pageToLoad = 1, replace = false) => {
+    const myReqId = ++reqIdRef.current;
     try {
       setLoading(true);
       setError("");
+
       const params = new URLSearchParams({
         page: String(pageToLoad),
         limit: String(PAGE_SIZE),
-        sort: sortBy, // expect API to understand: featured | price-asc | price-desc | name-asc | name-desc
+        sort: mapSortToServer(sortBy),
       });
-      const res = await fetch(`${API_BASE}/products?${params.toString()}`);
+      if (q) params.set("q", q);
+      if (min !== "") params.set("min", String(min));
+      if (max !== "") params.set("max", String(max));
+
+      const res = await fetch(`${API_BASE}/products?${params.toString()}`, {
+        credentials: "include",
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      // Expecting { items: [{ _id, name, images, price, mrp, category, badge, ...}], total: number }
-      const mapped = Array.isArray(data.items)
-        ? data.items.map((p) => ({
-            id: p._id || p.id,
-            name: p.name || p.title || "Flower",
-            image: (Array.isArray(p.images) && p.images[0]) || p.image || p.img,
-            price: p.price,
-            mrp: p.mrp,
-            category: p.category || "Bouquet",
-            badge: p.badge,
-            isNew: p.isNew,
-            bestseller: p.bestseller,
-          }))
-        : [];
 
-      setItems((prev) => (replace ? mapped : [...prev, ...mapped]));
-      setTotal(
-        Number(data.total) ||
-          (replace ? mapped.length : prev.length + mapped.length)
-      );
+      const serverList = Array.isArray(data)
+        ? data
+        : data.items || data.products || data.data || [];
+      const mapped = serverList.map(normalizeProduct).filter(Boolean);
+
+      // If a newer request finished already, ignore this one
+      if (myReqId !== reqIdRef.current) return;
+
+      // Use functional set to compute total reliably and avoid stale closures
+      setItems((prev) => {
+        const merged = replace ? mapped : [...prev, ...mapped];
+        setTotal(Number(data.total) || merged.length);
+        return merged;
+      });
       setPage(pageToLoad);
     } catch (e) {
+      if (myReqId !== reqIdRef.current) return;
       setError("Could not load products.");
-      // fallback to local data if first load fails
-      if (items.length === 0) {
-        const list = Array.isArray(localProducts) ? localProducts : [];
-        setItems(list);
+      // fallback only when nothing loaded yet
+      setItems((prev) => {
+        if (prev.length > 0) return prev;
+        const list = (Array.isArray(localProducts) ? localProducts : [])
+          .map(normalizeProduct)
+          .filter(Boolean);
         setTotal(list.length);
-      }
+        return list;
+      });
     } finally {
-      setLoading(false);
+      if (myReqId === reqIdRef.current) setLoading(false);
     }
   };
 
-  // Initial entrances
+  // Entrances
   useEffect(() => {
     if (heroRef.current) {
       gsap.fromTo(
@@ -107,7 +159,6 @@ const ShopAll = () => {
         { autoAlpha: 1, y: 0, duration: 0.8, ease: "power2.out" }
       );
     }
-
     if (promoRefs.current.length) {
       gsap.fromTo(
         promoRefs.current,
@@ -122,7 +173,6 @@ const ShopAll = () => {
         }
       );
     }
-
     if (sortRef.current) {
       gsap.fromTo(
         sortRef.current,
@@ -132,28 +182,39 @@ const ShopAll = () => {
     }
   }, []);
 
-  // Load data on mount and when sort changes
+  // Load on mount & when sort/filters change
   useEffect(() => {
     if (USE_API) {
       fetchPage(1, true);
     } else {
-      const list = Array.isArray(localProducts) ? localProducts : [];
+      const list = (Array.isArray(localProducts) ? localProducts : [])
+        .map(normalizeProduct)
+        .filter(Boolean)
+        .filter((p) => {
+          const okQ = q
+            ? (p.name || "").toLowerCase().includes(q.toLowerCase())
+            : true;
+          const price = Number(p.price) || 0;
+          const okMin = min !== "" ? price >= Number(min) : true;
+          const okMax = max !== "" ? price <= Number(max) : true;
+          return okQ && okMin && okMax;
+        });
       setItems(list);
       setTotal(list.length);
       setVisibleCount(PAGE_SIZE);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortBy]);
+  }, [sortBy, q, min, max]);
 
-  // ---- Local sorting (for fallback data only) ----
+  // Local sort (fallback only)
   const sortedLocal = useMemo(() => {
-    if (USE_API) return items; // API should return sorted
+    if (USE_API) return items;
     const list = Array.isArray(items) ? [...items] : [];
     return list.sort((a, b) => {
       const pa = Number(a?.price) || 0;
       const pb = Number(b?.price) || 0;
-      const na = (a?.name || a?.title || "").toLowerCase();
-      const nb = (b?.name || b?.title || "").toLowerCase();
+      const na = (a?.name || "").toLowerCase();
+      const nb = (b?.name || "").toLowerCase();
       switch (sortBy) {
         case "price-asc":
           return pa - pb;
@@ -164,7 +225,7 @@ const ShopAll = () => {
         case "name-desc":
           return nb.localeCompare(na);
         default:
-          return 0; // featured
+          return 0;
       }
     });
   }, [items, sortBy]);
@@ -172,24 +233,27 @@ const ShopAll = () => {
   const visibleProducts = USE_API ? items : sortedLocal.slice(0, visibleCount);
 
   const addToCart = (item) => {
-    const base = item?.name || item?.title || "Flower";
+    const base = item?.name || "Flower";
     const stable =
       item?.id ||
       item?._id ||
-      `${slug(base)}-${slug(String(item?.mrp || item?.price || ""))}`;
-    dispatch({
-      type: "ADD_TO_CART",
-      payload: {
-        id: stable,
-        name: base,
-        image: item?.image || item?.img || "/public/images/rose.jpg",
-        price: Number(item?.price) || 0,
-        quantity: 1,
-      },
-    });
+      item?.slug ||
+      `${slug(base)}-${slug(String(item?.price ?? ""))}`;
+    const payload = {
+      id: stable,
+      _id: item?._id,
+      slug: item?.slug,
+      name: base,
+      image: IMG(item?.image),
+      price: Number(item?.price) || 0,
+      quantity: 1,
+    };
+    if (typeof ctxAdd === "function") ctxAdd(payload, 1);
+    else if (dispatch) dispatch({ type: "ADD_TO_CART", payload });
+    else alert("Added to cart");
   };
 
-  // Animate cards every time the visible set changes
+  // Animate cards when count changes
   useEffect(() => {
     if (!cardRefs.current.length) return;
     gsap.set(cardRefs.current, { autoAlpha: 1 });
@@ -199,40 +263,46 @@ const ShopAll = () => {
       { autoAlpha: 1, y: 0, duration: 0.45, ease: "power2.out", stagger: 0.05 }
     );
     return () => {
-      // keep refs array length in sync
       cardRefs.current = cardRefs.current.slice(0, visibleProducts.length);
     };
   }, [visibleProducts.length]);
 
-  // Promo tiles (images should be in /public/assets; avoid HEIC in browsers)
   const promos = [
     {
       title: "Fresh Bouquets",
       subtitle: "Hand-tied daily",
-      img: "/src/assets/Valentine day/ef7043a7-8c3e-4cad-987e-ff8ebe9b9e77.jpg",
+      img: "/assets/shop/promo1.jpg",
     },
     {
       title: "Seasonal Bestsellers",
       subtitle: "Trending this week",
-      img: "/src/assets/Valentine day/ef7043a7-8c3e-4cad-987e-ff8ebe9b9e77.jpg",
+      img: "/assets/shop/promo2.jpg",
     },
     {
       title: "Gifts & Add-ons",
       subtitle: "Teddy • Balloons • Cards",
-      // Convert HEIC to JPG/PNG for web compatibility
-      img: "/src/assets/Valentine day/ef7043a7-8c3e-4cad-987e-ff8ebe9b9e77.jpg",
+      img: "/assets/shop/promo3.jpg",
     },
   ];
 
   const onLoadMore = () => {
-    if (USE_API) {
-      fetchPage(page + 1);
-    } else {
-      setVisibleCount((c) => c + PAGE_SIZE);
-    }
+    if (USE_API) fetchPage(page + 1);
+    else setVisibleCount((c) => c + PAGE_SIZE);
   };
 
   const totalCount = USE_API ? total : sortedLocal.length;
+  const hasMore = USE_API ? items.length < total : visibleCount < totalCount;
+
+  const Skeleton = () => (
+    <div className="card product-card h-100 border-0 shadow-sm placeholder-glow">
+      <div className="ratio ratio-1x1 bg-light" />
+      <div className="card-body">
+        <div className="placeholder col-5 mb-2" />
+        <div className="placeholder col-8 mb-2" />
+        <div className="placeholder col-3" />
+      </div>
+    </div>
+  );
 
   return (
     <div className="shop-page">
@@ -255,7 +325,7 @@ const ShopAll = () => {
 
         <div className="row g-3">
           {promos.map((b, i) => (
-            <div className="col-md-4" key={i}>
+            <div className="col-12 col-md-4" key={i}>
               <div
                 className="promo-tile rounded-4 overflow-hidden shadow-sm position-relative"
                 ref={(el) => (promoRefs.current[i] = el)}
@@ -281,34 +351,85 @@ const ShopAll = () => {
         </div>
       </section>
 
-      {/* SORT BAR */}
+      {/* FILTER + SORT BAR */}
       <section className="bg-white border-top border-bottom">
         <div className="container py-3" ref={sortRef}>
           <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center">
             <div className="small text-muted">
-              Showing{" "}
-              <strong>
-                {visibleProducts.length}/{totalCount}
-              </strong>{" "}
-              items
+              Showing <strong>{visibleProducts.length}</strong> of{" "}
+              <strong>{totalCount}</strong> items
             </div>
-            <div className="d-flex align-items-center gap-2">
-              <label className="small text-muted mb-0">Sort by</label>
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value);
-                  if (USE_API) setItems([]); // reset list for new sort
-                }}
-                className="form-select form-select-sm"
-                style={{ minWidth: 190 }}
+
+            <div className="d-flex flex-wrap gap-2 align-items-center">
+              {/* Search */}
+              <div
+                className="input-group input-group-sm"
+                style={{ minWidth: 220 }}
               >
-                <option value="featured">Featured</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
-                <option value="name-asc">Name: A → Z</option>
-                <option value="name-desc">Name: Z → A</option>
-              </select>
+                <span className="input-group-text">Search</span>
+                <input
+                  type="search"
+                  className="form-control"
+                  placeholder="Roses, box, pastel…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+              </div>
+
+              {/* Price */}
+              <div
+                className="input-group input-group-sm"
+                style={{ width: 220 }}
+              >
+                <span className="input-group-text">AED</span>
+                <input
+                  type="number"
+                  className="form-control"
+                  placeholder="Min"
+                  value={min}
+                  onChange={(e) => setMin(e.target.value)}
+                  min="0"
+                />
+                <input
+                  type="number"
+                  className="form-control"
+                  placeholder="Max"
+                  value={max}
+                  onChange={(e) => setMax(e.target.value)}
+                  min="0"
+                />
+              </div>
+
+              {/* Sort */}
+              <div className="d-flex align-items-center gap-2">
+                <label className="small text-muted mb-0">Sort</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value);
+                    if (USE_API) setItems([]); // clean list before new fetch
+                  }}
+                  className="form-select form-select-sm"
+                  style={{ minWidth: 190 }}
+                >
+                  <option value="featured">Featured</option>
+                  <option value="price-asc">Price: Low to High</option>
+                  <option value="price-desc">Price: High to Low</option>
+                  <option value="name-asc">Name: A → Z</option>
+                  <option value="name-desc">Name: Z → A</option>
+                </select>
+              </div>
+
+              {/* Apply (API only) */}
+              {USE_API && (
+                <button
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={() => fetchPage(1, true)}
+                  disabled={loading}
+                >
+                  Apply
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -323,6 +444,14 @@ const ShopAll = () => {
         )}
 
         <div className="row g-3 g-md-4">
+          {loading &&
+            items.length === 0 &&
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={`sk-${i}`} className="col-6 col-md-4 col-lg-3">
+                <Skeleton />
+              </div>
+            ))}
+
           {visibleProducts.map((p, idx) => (
             <div
               key={p?.id ?? `prod-${idx}`}
@@ -338,8 +467,8 @@ const ShopAll = () => {
                   )}
                   <div className="ratio ratio-1x1">
                     <img
-                      src={IMG(p?.image || p?.img || "/public/images/rose.jpg")}
-                      alt={p?.name || p?.title || "Flower"}
+                      src={IMG(p?.image)}
+                      alt={p?.name || "Flower"}
                       className="w-100 h-100"
                       style={{ objectFit: "cover" }}
                       loading="lazy"
@@ -354,26 +483,28 @@ const ShopAll = () => {
                   <div className="small text-muted mb-1">
                     {p?.category || "Bouquet"}
                   </div>
-                  <h6 className="mb-1 fw-semibold">
-                    {p?.name || p?.title || "Elegant Bouquet"}
-                  </h6>
+                  <h6 className="mb-1 fw-semibold text-truncate">{p?.name}</h6>
                   <div className="mb-2">
                     <span className="fw-bold">{formatCurrency(p?.price)}</span>
-                    {p?.mrp && Number(p.mrp) > (Number(p.price) || 0) ? (
+                    {p?.mrp && Number(p.mrp) > (Number(p.price) || 0) && (
                       <small className="text-muted ms-2 text-decoration-line-through">
                         {formatCurrency(p.mrp)}
                       </small>
-                    ) : null}
+                    )}
                   </div>
 
                   <div className="mt-auto d-grid gap-2">
+                    <button className="btn btn-outline-secondary btn-sm">
+                      View Details
+                    </button>
                     <button
                       className="btn btn-pink btn-sm"
                       onClick={() => addToCart(p)}
+                      disabled={p?.stock === 0}
+                      title={p?.stock === 0 ? "Out of stock" : "Add to cart"}
                     >
-                      Add to Cart
+                      {p?.stock === 0 ? "Unavailable in Dubai" : "Add to Cart"}
                     </button>
-                    {/* Quick View removed */}
                   </div>
                 </div>
               </div>
@@ -385,21 +516,21 @@ const ShopAll = () => {
               <div className="text-center py-5 bg-white rounded-3 shadow-sm">
                 <h5 className="mb-1">No products found</h5>
                 <p className="text-muted mb-0">
-                  Try adjusting your filters or come back soon.
+                  Try adjusting search or price range, or come back soon.
                 </p>
               </div>
             </div>
           )}
         </div>
 
-        {loading && (
+        {loading && items.length > 0 && (
           <div className="text-center my-4">
             <div className="spinner-border" role="status" />
-            <div className="small text-muted mt-2">Loading...</div>
+            <div className="small text-muted mt-2">Loading more…</div>
           </div>
         )}
 
-        {(!USE_API ? visibleCount < totalCount : items.length < totalCount) && (
+        {hasMore && !loading && (
           <div className="text-center mt-4">
             <button className="btn btn-outline-dark px-4" onClick={onLoadMore}>
               Load More
@@ -408,35 +539,42 @@ const ShopAll = () => {
         )}
       </section>
 
-      {/* RECOMMENDATIONS */}
-      <section className="container pb-5">
-        <h5 className="fw-semibold mb-3">You may also like</h5>
-        <div className="row g-3 g-md-4">
-          {(localProducts || []).slice(0, 6).map((p, i) => (
-            <div key={`like-${i}`} className="col-6 col-md-4 col-lg-2">
-              <div className="card border-0 shadow-sm h-100 mini-card">
-                <div className="ratio ratio-1x1 rounded-top overflow-hidden">
-                  <img
-                    src={IMG(p?.image || p?.img || "/public/images/rose.jpg")}
-                    alt={p?.name || "Flower"}
-                    className="w-100 h-100"
-                    style={{ objectFit: "cover" }}
-                    loading="lazy"
-                    onError={(e) =>
-                      (e.currentTarget.src = "/public/images/rose.jpg")
-                    }
-                  />
-                </div>
-                <div className="card-body py-2">
-                  <div className="small">{p?.name || "Bouquet"}</div>
+      {/* RECOMMENDATIONS — shown only when NOT using API (fallback dev data) */}
+      {!USE_API && (
+        <section className="container pb-5">
+          <h5 className="fw-semibold mb-3">You may also like</h5>
+          <div className="row g-3 g-md-4">
+            {(localProducts || []).slice(0, 6).map((p, i) => (
+              <div key={`like-${i}`} className="col-6 col-md-4 col-lg-2">
+                <div className="card border-0 shadow-sm h-100 mini-card">
+                  <div className="ratio ratio-1x1 rounded-top overflow-hidden">
+                    <img
+                      src={IMG(
+                        (Array.isArray(p.images) &&
+                          (p.images[0]?.url || p.images[0])) ||
+                          p.image ||
+                          p.img
+                      )}
+                      alt={p?.name || "Flower"}
+                      className="w-100 h-100"
+                      style={{ objectFit: "cover" }}
+                      loading="lazy"
+                      onError={(e) =>
+                        (e.currentTarget.src = "/assets/rose.jpg")
+                      }
+                    />
+                  </div>
+                  <div className="card-body py-2">
+                    <div className="small text-truncate">
+                      {p?.name || "Bouquet"}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Recently viewed section removed */}
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 };

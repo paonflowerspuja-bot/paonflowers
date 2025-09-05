@@ -17,6 +17,23 @@ import Eid from "../pages/flowers/Eid";
 import MothersDay from "../pages/flowers/MothersDay";
 import BridalBoutique from "../pages/flowers/BridalBoutique";
 
+import Hydrangeia from "../pages/flowerTypes/Hydrangeia";
+import Rose from "../pages/flowerTypes/Rose";
+import Lemonium from "../pages/flowerTypes/Lemonium";
+import Lilly from "../pages/flowerTypes/Lilly";
+import Tulip from "../pages/flowerTypes/Tulip";
+import Foliage from "../pages/flowerTypes/Foliage";
+
+import Red from "../pages/flowerColors/Red";
+import White from "../pages/flowerColors/White";
+import Yellow from "../pages/flowerColors/Yellow";
+import Pink from "../pages/flowerColors/Pink";
+
+import Summer from "../pages/summerCollecton/Summer";
+
+import Balloons from "../pages/balloons/Balloons";
+import TeddyBear from "../pages/teddyBear/TeddyBear";
+
 import Cart from "../pages/cart/Cart";
 import WhatsAppCheckout from "../pages/Checkout/WhatsAppCheckout";
 import OtpVerification from "../pages/Checkout/OtpVerification";
@@ -29,7 +46,7 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import ManageProducts from "../pages/admin/ManageProducts";
 import ManageOrders from "../pages/admin/ManageOrders";
-import ManageOffers from "/src/pages/admin/ ManageOffers.jsx"; // ← fixed path (no space)
+import ManageOffers from "/src/pages/admin/ ManageOffers.jsx";
 import DeliveryStatus from "../pages/admin/DeliveryStatus";
 import Customers from "../pages/admin/Customers";
 
@@ -67,6 +84,26 @@ const AppRoutes = () => {
         <Route path="flowers/BridalBoutique" element={<BridalBoutique />} />
         <Route path="flowers/featured" element={<FeaturedFlowers />} />
 
+        {/* Flower Types */}
+        <Route path="/flowers/type/hydrangeia" element={<Hydrangeia />} />
+        <Route path="/flowers/type/rose" element={<Rose />} />
+        <Route path="/flowers/type/lemonium" element={<Lemonium />} />
+        <Route path="/flowers/type/lilly" element={<Lilly />} />
+        <Route path="/flowers/type/tulip" element={<Tulip />} />
+        <Route path="/flowers/type/foliage" element={<Foliage />} />
+
+        {/* Flower Colors */}
+        <Route path="/flowers/color/red" element={<Red />} />
+        <Route path="/flowers/color/white" element={<White />} />
+        <Route path="/flowers/color/yellow" element={<Yellow />} />
+        <Route path="/flowers/color/pink" element={<Pink />} />
+
+        <Route path="/flowers/collections/summer" element={<Summer />} />
+
+        {/* Add ons */}
+        <Route path="/flowers/addons/balloons" element={<Balloons />} />
+        <Route path="/flowers/addons/teddy-bear" element={<TeddyBear />} />
+
         {/* Blog */}
         <Route path="blog" element={<Blog />} />
         <Route path="blog/:slug" element={<BlogPost />} />
@@ -77,7 +114,7 @@ const AppRoutes = () => {
         <Route path="delivery" element={<Delivery />} />
         <Route path="cart" element={<Cart />} />
         <Route path="store-location" element={<StoreLocation />} />
-       
+
         <Route path="weddings" element={<Weddings />} />
         <Route path="custom-flowers" element={<CustomFlowers />} />
         <Route path="about" element={<AboutPaonFlowers />} />
