@@ -14,6 +14,7 @@ import errorHandler from "./middleware/errorHandler.js";
 import authRoutes from "./routes/authRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import categoriesRoutes from "./routes/categoriesRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 
 import { connectDB } from "./config/db.js";
@@ -45,6 +46,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/uploads", uploadRoutes);
+app.use("/api/categories", categoriesRoutes);
 
 app.get("/api/health", (_, res) => res.json({ ok: true }));
 
