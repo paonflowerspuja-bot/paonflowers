@@ -120,7 +120,14 @@ const AppRoutes = () => {
         <Route path="about" element={<AboutPaonFlowers />} />
 
         {/* Protected user routes */}
-        <Route path="profile" element={<Profile />} />
+        <Route
+          path="profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="orders"
           element={
