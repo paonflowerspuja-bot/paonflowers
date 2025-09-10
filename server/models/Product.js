@@ -4,6 +4,7 @@ const imageSchema = new mongoose.Schema(
   {
     url: { type: String, required: true },
     public_id: String, // present when using a cloud like Cloudinary
+    alt: { type: String },
   },
   { _id: false }
 );
