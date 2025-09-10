@@ -43,6 +43,7 @@ import Signup from "../pages/user/Signup";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 
+import AdminRoute from "../components/admin/AdminRoute"
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import ManageProducts from "../pages/admin/ManageProducts";
 import ManageOrders from "../pages/admin/ManageOrders";
@@ -170,7 +171,7 @@ const AppRoutes = () => {
       </Route>
 
       {/* Admin shell OUTSIDE the public <Layout /> */}
-      <Route path="/admin" element={<AdminDashboard />}>
+      <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>}>
         <Route index element={<></>} /> {/* overview in AdminDashboard */}
         <Route path="products" element={<ManageProducts />} />
         <Route path="orders" element={<ManageOrders />} />

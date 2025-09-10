@@ -1,5 +1,6 @@
 import { z } from "zod";
 import Product from "../models/Product.js";
+import slugify from "slugify";
 
 const createSchema = z.object({
   name: z.string().min(2),
@@ -45,7 +46,15 @@ export const listProducts = async (req, res, next) => {
       Product.countDocuments(filter),
     ]);
 
-    res.json({ items, total, page: +page, pages: Math.ceil(total / +limit) });
+    res.json({
+      items,
+      pagination: {
+        page: +page,
+        limit: +limit,
+        total,
+        pages: Math.ceil(total / +limit),
+      },
+    });
   } catch (e) {
     next(e);
   }
@@ -53,9 +62,11 @@ export const listProducts = async (req, res, next) => {
 
 export const getProduct = async (req, res, next) => {
   try {
-    const item = await Product.findOne({ slug: req.params.slug });
-    if (!item) return res.status(404).json({ message: "Not found" });
-    res.json(item);
+    const bySlug = await Product.findOne({ slug: req.params.slug });
+    if (bySlug) return res.json(bySlug);
+    const byId = await Product.findById(req.params.slug);
+    if (byId) return res.json(byId);
+    res.status(404).json({ message: "Product not found" });
   } catch (e) {
     next(e);
   }
@@ -66,17 +77,15 @@ export const createProduct = async (req, res, next) => {
     const body = createSchema.parse({
       ...req.body,
       price: Number(req.body.price),
-      stock: req.body.stock ? Number(req.body.stock) : undefined,
+      stock: req.body.stock != null ? Number(req.body.stock) : undefined,
+      isFeatured:
+        req.body.isFeatured === "true" || req.body.isFeatured === true,
+      tags: req.body.tags ? JSON.parse(req.body.tags) : undefined,
     });
 
-    const slug =
-      body.slug ||
-      body.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "") +
-        "-" +
-        Date.now().toString(36);
+    const slug = (
+      body.slug || slugify(body.name, { lower: true, strict: true })
+    ).slice(0, 120);
 
     const images = [];
     if (req.file) images.push({ url: `/uploads/${req.file.filename}` });
@@ -90,17 +99,40 @@ export const createProduct = async (req, res, next) => {
 
 export const updateProduct = async (req, res, next) => {
   try {
-    const data = { ...req.body };
-    if (req.file) {
-      data.$push = { images: { url: `/uploads/${req.file.filename}` } };
-    }
-    if (data.price) data.price = Number(data.price);
-    if (data.stock) data.stock = Number(data.stock);
+    const id = req.params.id;
+    const existing = await Product.findById(id);
+    if (!existing)
+      return res.status(404).json({ message: "Product not found" });
 
-    const updated = await Product.findByIdAndUpdate(req.params.id, data, {
-      new: true,
+    const partial = createSchema.partial().parse({
+      ...req.body,
+      price: req.body.price != null ? Number(req.body.price) : undefined,
+      stock: req.body.stock != null ? Number(req.body.stock) : undefined,
+      isFeatured:
+        req.body.isFeatured === "true" || req.body.isFeatured === true
+          ? true
+          : req.body.isFeatured === "false" || req.body.isFeatured === false
+          ? false
+          : undefined,
+      tags: req.body.tags ? JSON.parse(req.body.tags) : undefined,
     });
-    if (!updated) return res.status(404).json({ message: "Not found" });
+
+    let images = existing.images || [];
+    if (req.file)
+      images = [{ url: `/uploads/${req.file.filename}` }, ...images];
+
+    const update = {
+      ...partial,
+      ...(partial.name && {
+        slug: slugify(partial.name, { lower: true, strict: true }).slice(
+          0,
+          120
+        ),
+      }),
+      images,
+    };
+
+    const updated = await Product.findByIdAndUpdate(id, update, { new: true });
     res.json(updated);
   } catch (e) {
     next(e);

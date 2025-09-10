@@ -79,22 +79,17 @@ const ManageProducts = () => {
       params.set("page", String(curPage));
       params.set("sort", "-createdAt");
 
-      const { data } = await api.get(`/api/products?${params.toString()}`);
+      // api base already points to `${HOST}/api`
+      const { data } = await api.get(`/products?${params.toString()}`);
       // support both shapes: {items,total} or array
-      const items = Array.isArray(data)
-        ? data
-        : data.items || data.products || [];
-      const t = Array.isArray(data)
-        ? items.length
-        : data.total ?? data.count ?? items.length;
+      const items = Array.isArray(data) ? data : data.items || data.products || [];
+      const t = Array.isArray(data) ? items.length : data.total ?? data.count ?? items.length;
 
       setList(items);
       setTotal(t);
       if (opts.page) setPage(opts.page);
     } catch (e) {
-      setErr(
-        e?.response?.data?.message || e?.message || "Failed to load products"
-      );
+      setErr(e?.response?.data?.message || e?.message || "Failed to load products");
     } finally {
       setLoading(false);
     }
@@ -103,10 +98,8 @@ const ManageProducts = () => {
   const fetchCategories = async () => {
     try {
       // optional endpoint; if you don’t have it, this silently keeps an empty list
-      const { data } = await api.get("/api/categories");
-      const arr = Array.isArray(data)
-        ? data
-        : data.items || data.categories || [];
+      const { data } = await api.get("/categories");
+      const arr = Array.isArray(data) ? data : data.items || data.categories || [];
       setCategories(arr);
     } catch {}
   };
@@ -127,7 +120,7 @@ const ManageProducts = () => {
       Object.entries(form).forEach(([k, v]) => fd.append(k, v));
       if (file) fd.append("file", file);
 
-      const { data } = await api.post("/api/products", fd, {
+      const { data } = await api.post("/products", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -138,9 +131,7 @@ const ManageProducts = () => {
       setPreview("");
       emitProductsChanged();
     } catch (e) {
-      alert(
-        e?.response?.data?.message || e?.message || "Failed to create product"
-      );
+      alert(e?.response?.data?.message || e?.message || "Failed to create product");
     } finally {
       setSaving(false);
     }
@@ -172,7 +163,7 @@ const ManageProducts = () => {
         fd.append("isActive", editing.isActive ? "true" : "false");
         fd.append("file", editFile);
 
-        const { data } = await api.put(`/api/products/${editing._id}`, fd, {
+        const { data } = await api.put(`/products/${editing._id}`, fd, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         applyLocalUpdate(data);
@@ -186,15 +177,13 @@ const ManageProducts = () => {
           isFeatured: !!editing.isFeatured,
           isActive: !!editing.isActive,
         };
-        const { data } = await api.put(`/api/products/${editing._id}`, payload);
+        const { data } = await api.put(`/products/${editing._id}`, payload);
         applyLocalUpdate(data);
       }
       setEditing(null);
       emitProductsChanged();
     } catch (e) {
-      alert(
-        e?.response?.data?.message || e?.message || "Failed to update product"
-      );
+      alert(e?.response?.data?.message || e?.message || "Failed to update product");
     } finally {
       setSaving(false);
     }
@@ -211,13 +200,11 @@ const ManageProducts = () => {
   const deleteProduct = async (id) => {
     if (!window.confirm("Delete this product?")) return;
     try {
-      await api.delete(`/api/products/${id}`);
+      await api.delete(`/products/${id}`);
       setList((prev) => prev.filter((p) => p._id !== id));
       emitProductsChanged();
     } catch (e) {
-      alert(
-        e?.response?.data?.message || e?.message || "Failed to delete product"
-      );
+      alert(e?.response?.data?.message || e?.message || "Failed to delete product");
     }
   };
 
@@ -377,11 +364,7 @@ const ManageProducts = () => {
         </div>
 
         <div className="col-12 col-md-2 ms-auto">
-          <button
-            className="btn btn-pink w-100"
-            type="submit"
-            disabled={saving}
-          >
+          <button className="btn btn-pink w-100" type="submit" disabled={saving}>
             {saving ? "Saving…" : "+ Add Product"}
           </button>
         </div>
@@ -392,11 +375,7 @@ const ManageProducts = () => {
         <div className="card-body p-0">
           {loading ? (
             <div className="p-4 text-center">
-              <div
-                className="spinner-border"
-                role="status"
-                aria-hidden="true"
-              ></div>
+              <div className="spinner-border" role="status" aria-hidden="true"></div>
             </div>
           ) : err ? (
             <div className="alert alert-danger m-3">{err}</div>
@@ -444,9 +423,7 @@ const ManageProducts = () => {
                         <td className="text-end">{p.stock ?? "—"}</td>
                         <td>
                           {!!p.isFeatured && (
-                            <span className="badge bg-danger me-2">
-                              Featured
-                            </span>
+                            <span className="badge bg-danger me-2">Featured</span>
                           )}
                           {p.isActive ? (
                             <span className="badge bg-success">Active</span>
@@ -523,11 +500,7 @@ const ManageProducts = () => {
             <form onSubmit={updateProduct}>
               <div className="modal-header">
                 <h5 className="modal-title">Edit Product</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setEditing(null)}
-                />
+                <button type="button" className="btn-close" onClick={() => setEditing(null)} />
               </div>
               <div className="modal-body">
                 {editing && (
@@ -537,9 +510,7 @@ const ManageProducts = () => {
                       <input
                         className="form-control"
                         value={editing.name || ""}
-                        onChange={(e) =>
-                          setEditing({ ...editing, name: e.target.value })
-                        }
+                        onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                         required
                       />
                     </div>
@@ -550,10 +521,7 @@ const ManageProducts = () => {
                         className="form-control"
                         value={editing.price ?? 0}
                         onChange={(e) =>
-                          setEditing({
-                            ...editing,
-                            price: Number(e.target.value),
-                          })
+                          setEditing({ ...editing, price: Number(e.target.value) })
                         }
                         min="0"
                         required
@@ -566,10 +534,7 @@ const ManageProducts = () => {
                         className="form-control"
                         value={editing.stock ?? 0}
                         onChange={(e) =>
-                          setEditing({
-                            ...editing,
-                            stock: Number(e.target.value),
-                          })
+                          setEditing({ ...editing, stock: Number(e.target.value) })
                         }
                         min="0"
                       />
@@ -579,9 +544,7 @@ const ManageProducts = () => {
                       <input
                         className="form-control"
                         value={editing.category || ""}
-                        onChange={(e) =>
-                          setEditing({ ...editing, category: e.target.value })
-                        }
+                        onChange={(e) => setEditing({ ...editing, category: e.target.value })}
                       />
                     </div>
                     <div className="col-12">
@@ -590,12 +553,7 @@ const ManageProducts = () => {
                         className="form-control"
                         rows={3}
                         value={editing.description || ""}
-                        onChange={(e) =>
-                          setEditing({
-                            ...editing,
-                            description: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                       />
                     </div>
 
@@ -605,9 +563,7 @@ const ManageProducts = () => {
                         type="file"
                         className="form-control"
                         accept="image/*"
-                        onChange={(e) =>
-                          setEditFile(e.target.files?.[0] || null)
-                        }
+                        onChange={(e) => setEditFile(e.target.files?.[0] || null)}
                       />
                       <div className="d-flex gap-2 mt-2">
                         <img
@@ -618,12 +574,7 @@ const ManageProducts = () => {
                             "/assets/placeholder.jpg"
                           }
                           alt="preview"
-                          style={{
-                            width: 100,
-                            height: 100,
-                            objectFit: "cover",
-                            borderRadius: 6,
-                          }}
+                          style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 6 }}
                         />
                       </div>
                     </div>
@@ -636,16 +587,10 @@ const ManageProducts = () => {
                           id="featuredEdit"
                           checked={!!editing.isFeatured}
                           onChange={(e) =>
-                            setEditing({
-                              ...editing,
-                              isFeatured: e.target.checked,
-                            })
+                            setEditing({ ...editing, isFeatured: e.target.checked })
                           }
                         />
-                        <label
-                          htmlFor="featuredEdit"
-                          className="form-check-label"
-                        >
+                        <label htmlFor="featuredEdit" className="form-check-label">
                           Featured
                         </label>
                       </div>
@@ -659,16 +604,10 @@ const ManageProducts = () => {
                           id="activeEdit"
                           checked={!!editing.isActive}
                           onChange={(e) =>
-                            setEditing({
-                              ...editing,
-                              isActive: e.target.checked,
-                            })
+                            setEditing({ ...editing, isActive: e.target.checked })
                           }
                         />
-                        <label
-                          htmlFor="activeEdit"
-                          className="form-check-label"
-                        >
+                        <label htmlFor="activeEdit" className="form-check-label">
                           Active
                         </label>
                       </div>
@@ -677,18 +616,10 @@ const ManageProducts = () => {
                 )}
               </div>
               <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary"
-                  onClick={() => setEditing(null)}
-                >
+                <button type="button" className="btn btn-outline-secondary" onClick={() => setEditing(null)}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="btn btn-pink"
-                  disabled={saving}
-                >
+                <button type="submit" className="btn btn-pink" disabled={saving}>
                   {saving ? "Saving…" : "Save changes"}
                 </button>
               </div>

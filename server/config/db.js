@@ -1,19 +1,16 @@
-// db.js (or wherever you connect)
+// config/db.js
 import mongoose from "mongoose";
 
-const isProd = process.env.NODE_ENV === "production";
-const uri =
-  process.env.MONGODB_URI ||
-  (!isProd ? "mongodb://127.0.0.1:27017/paonflowers" : null);
-
-if (isProd && !uri) {
-  throw new Error("MONGODB_URI is required in production");
-}
-
-export async function connectDB() {
-  await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 5000,
-    autoIndex: false,
-  });
-  console.log("✅ MongoDB connected");
-}
+export const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 30000,
+    });
+    console.log(
+      `✅ MongoDB connected → host: ${conn.connection.host} | db: ${conn.connection.name}`
+    );
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err.message);
+    process.exit(1);
+  }
+};
