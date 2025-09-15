@@ -1,95 +1,68 @@
-// controllers/uploadController.js
-import cloudinary from "../utils/cloudinary.js";
-import streamifier from "streamifier";
+// server/controllers/uploadController.js
+import { uploadBuffer, deleteByPublicId } from "../utils/cloudinary.js";
 
-const CLOUDINARY_FOLDER = process.env.CLOUDINARY_FOLDER || "paonflowers";
-
-const streamUpload = (buffer, folder, filename) =>
-  new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder,
-        use_filename: true,
-        unique_filename: true,
-        overwrite: false,
-        resource_type: "image",
-        context: filename ? { alt: filename } : undefined,
-        // You can add transformations if you want standardized sizes/thumbnails, e.g.:
-        // transformation: [{ width: 1600, height: 1600, crop: "limit" }],
-      },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve(result);
-      }
-    );
-    streamifier.createReadStream(buffer).pipe(stream);
-  });
-
-export const uploadSingleImage = async (req, res, next) => {
+export async function uploadSingle(req, res, next) {
   try {
-    if (!req.file)
-      return res
-        .status(400)
-        .json({ error: "No image file provided (field: 'image')." });
+    const file =
+      req._allFiles?.[0] ||
+      req.file ||
+      (req.files?.image && req.files.image[0]) ||
+      (req.files?.file && req.files.file[0]);
 
-    const folder = CLOUDINARY_FOLDER;
-    const filename = req.body.filename || req.file.originalname;
+    if (!file?.buffer) {
+      return res.status(400).json({ message: "No image provided" });
+    }
 
-    const result = await streamUpload(req.file.buffer, folder, filename);
-    const payload = {
-      public_id: result.public_id,
+    const result = await uploadBuffer(file.buffer);
+    return res.json({
       url: result.secure_url,
+      publicId: result.public_id,
       width: result.width,
       height: result.height,
       format: result.format,
-      bytes: result.bytes,
-    };
-
-    return res.status(201).json({ ok: true, asset: payload });
-  } catch (err) {
-    return next(err);
-  }
-};
-
-export const uploadMultipleImages = async (req, res, next) => {
-  try {
-    if (!req.files?.length)
-      return res
-        .status(400)
-        .json({ error: "No image files provided (field: 'images')." });
-
-    const folder = CLOUDINARY_FOLDER;
-
-    const uploads = await Promise.all(
-      req.files.map((f) => streamUpload(f.buffer, folder, f.originalname))
-    );
-
-    const assets = uploads.map((r) => ({
-      public_id: r.public_id,
-      url: r.secure_url,
-      width: r.width,
-      height: r.height,
-      format: r.format,
-      bytes: r.bytes,
-    }));
-
-    return res.status(201).json({ ok: true, assets });
-  } catch (err) {
-    return next(err);
-  }
-};
-
-export const deleteImage = async (req, res, next) => {
-  try {
-    const { public_id } = req.body;
-    if (!public_id)
-      return res.status(400).json({ error: "public_id is required" });
-
-    const result = await cloudinary.uploader.destroy(public_id, {
-      resource_type: "image",
     });
-    return res.json({ ok: true, result });
-  } catch (err) {
-    return next(err);
+  } catch (e) {
+    next(e);
   }
-};
+}
+
+export async function uploadMultiple(req, res, next) {
+  try {
+    const files =
+      req._allFiles ||
+      req.files?.images ||
+      req.files?.image ||
+      req.files?.file ||
+      [];
+
+    if (!files.length) {
+      return res.status(400).json({ message: "No images provided" });
+    }
+
+    const outs = [];
+    for (const f of files) {
+      const r = await uploadBuffer(f.buffer);
+      outs.push({
+        url: r.secure_url,
+        publicId: r.public_id,
+        width: r.width,
+        height: r.height,
+        format: r.format,
+      });
+    }
+    return res.json({ items: outs });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function deleteImage(req, res, next) {
+  try {
+    const { publicId } = req.query;
+    if (!publicId) return res.status(400).json({ message: "publicId required" });
+    const result = await deleteByPublicId(publicId);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+}

@@ -1,17 +1,12 @@
+// routes/authRoutes.js
 import { Router } from "express";
 import auth from "../middleware/auth.js";
-import { otpSendLimiter } from "../middleware/rateLimit.js";
-import {
-  sendOtp,
-  verifyOtp,
-  updateProfile,
-  me,
-} from "../controllers/authController.js";
+import { sendOtp, verifyOtp, me } from "../controllers/authController.js";
 
-const r = Router();
-r.post("/send-otp", otpSendLimiter, sendOtp);
-r.post("/verify-otp", verifyOtp);
-r.get("/me", auth, me);
-r.patch("/profile", auth, updateProfile);
+const router = Router();
 
-export default r;
+router.post("/send-otp", sendOtp);
+router.post("/verify-otp", verifyOtp);
+router.get("/me", auth, me);
+
+export default router;

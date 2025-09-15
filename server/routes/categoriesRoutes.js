@@ -1,20 +1,22 @@
+// server/routes/categoriesRoutes.js
 import { Router } from "express";
-import Product from "../models/Product.js";
-const r = Router();
+import {
+  FLOWER_TYPES,
+  FLOWER_COLORS,
+  OCCASIONS,
+  COLLECTIONS,
+} from "../models/Product.js";
 
-r.get("/", async (_, res, next) => {
-  try {
-    const [categories, occasions] = await Promise.all([
-      Product.distinct("category"),
-      Product.distinct("occasion"),
-    ]);
-    res.json({
-      categories: (categories || []).filter(Boolean),
-      occasions: (occasions || []).filter(Boolean),
-    });
-  } catch (e) {
-    next(e);
-  }
+const router = Router();
+
+// GET /api/categories
+router.get("/", async (_req, res) => {
+  res.json({
+    types: FLOWER_TYPES,
+    colors: FLOWER_COLORS,
+    occasions: OCCASIONS,
+    collections: COLLECTIONS,
+  });
 });
 
-export default r;
+export default router;

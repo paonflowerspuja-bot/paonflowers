@@ -1,17 +1,20 @@
+// models/OtpToken.js
 import mongoose from "mongoose";
 
-const otpSchema = new mongoose.Schema(
+const otpTokenSchema = new mongoose.Schema(
   {
     phone: { type: String, required: true, index: true },
-    code: { type: String, required: true },
+    code: { type: String, required: true }, // keep as STRING
+    // DO NOT set index:true here — TTL is defined below
     expiresAt: { type: Date, required: true },
-    attempts: { type: Number, default: 0 }, // verification attempts
-    sentAt: { type: Date, default: Date.now },
   },
-  { timestamps: true }
+  { timestamps: true } // gives createdAt for sorting
 );
 
-// TTL index for auto-expiration
-otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// Latest token per phone
+otpTokenSchema.index({ phone: 1, createdAt: -1 });
 
-export default mongoose.model("OtpToken", otpSchema);
+// TTL index so docs are removed automatically when expiresAt passes
+otpTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+export default mongoose.model("OtpToken", otpTokenSchema);

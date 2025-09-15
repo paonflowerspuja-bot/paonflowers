@@ -4,7 +4,8 @@ import App from "./App";
 
 import { BrowserRouter } from "react-router-dom";
 import { CartProvider } from "./context/CartContext";
-import { AuthProvider } from "./context/AuthContext";
+import AuthProvider from "./context/AuthContext.jsx";
+
 import { HelmetProvider } from "react-helmet-async";
 
 import "./index.css";

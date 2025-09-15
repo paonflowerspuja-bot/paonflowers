@@ -1,4 +1,7 @@
+// server/routes/productRoutes.js
 import { Router } from "express";
+import auth from "../middleware/auth.js";
+import isAdmin from "../middleware/isAdmin.js";
 import {
   listProducts,
   getProduct,
@@ -6,18 +9,19 @@ import {
   updateProduct,
   deleteProduct,
 } from "../controllers/productController.js";
-import { upload } from "../middleware/multer.js";
-import auth from "../middleware/auth.js";
-import isAdmin from "../middleware/isAdmin.js";
 
-const r = Router();
+// ✅ use the new memory-based multer + collector (Cloudinary pipeline)
+import { productImages, collectAllFiles } from "../middleware/multer.js";
 
-r.get("/", listProducts);
-r.get("/:slug", getProduct);
+const router = Router();
 
-// admin-only mutations
-r.post("/", auth, isAdmin, upload.single("file"), createProduct);
-r.put("/:id", auth, isAdmin, upload.single("file"), updateProduct);
-r.delete("/:id", auth, isAdmin, deleteProduct);
+// Public
+router.get("/", listProducts);
+router.get("/:slug", getProduct);
 
-export default r;
+// Admin
+router.post("/", auth, isAdmin, productImages, collectAllFiles, createProduct);
+router.patch("/:id", auth, isAdmin, productImages, collectAllFiles, updateProduct);
+router.delete("/:id", auth, isAdmin, deleteProduct);
+
+export default router;

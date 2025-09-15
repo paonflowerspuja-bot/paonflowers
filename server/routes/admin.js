@@ -1,55 +1,96 @@
 // server/routes/admin.js
 import { Router } from "express";
+import Offer from "../models/offers.js";
 import Product from "../models/Product.js";
-import Order from "../models/Order.js";
+
+// Orders are optional — try to load; if missing, we'll still serve metrics
+let Order = null;
+try {
+  const mod = await import("../models/Order.js");
+  Order = mod.default;
+} catch {
+  // No Order model found; orders metrics will be omitted gracefully
+}
 
 const router = Router();
 
 /**
  * GET /api/admin/metrics
- * Returns basic dashboard metrics.
+ * Query: ?limit=5
  *
- * - productsCount: total products
- * - ordersCount: total orders
- * - revenueToday: sum of order.total for orders created today with a "successful" status
- * - lowStockCount: products with stock <= 5 (tweak threshold if you like)
+ * Returns:
+ * {
+ *   ok: true,
+ *   counts: { products, offers, activeOffers, orders },
+ *   latest: { products: [...], offers: [...], orders: [...] },
+ *   // Back-compat:
+ *   latestProducts: [...],
+ *   latestOffers: [...],
+ *   latestOrders: [...]
+ * }
  */
 router.get("/metrics", async (req, res, next) => {
   try {
+    const limit = Math.max(1, Math.min(Number(req.query.limit) || 5, 50));
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-    // Adjust these statuses to match your Order schema’s “successful/paid” states
-    const SUCCESS_STATUSES = ["paid", "delivered", "completed"];
+    const activeOfferFilter = {
+      active: true,
+      $and: [
+        { $or: [{ startsAt: null }, { startsAt: { $lte: now } }] },
+        { $or: [{ endsAt: null }, { endsAt: { $gte: now } }] },
+      ],
+    };
 
-    const [
-      productsCount,
-      ordersCount,
-      revenueAgg,
-      lowStockCount,
-    ] = await Promise.all([
+    const [productCount, offerCount, activeOfferCount] = await Promise.all([
       Product.countDocuments({}),
-      Order.countDocuments({}),
-      Order.aggregate([
-        {
-          $match: {
-            createdAt: { $gte: startOfToday, $lt: startOfTomorrow },
-            status: { $in: SUCCESS_STATUSES },
-          },
-        },
-        { $group: { _id: null, revenue: { $sum: "$total" } } },
-      ]),
-      Product.countDocuments({ stock: { $gte: 0, $lte: 5 } }), // threshold=5
+      Offer.countDocuments({}),
+      Offer.countDocuments(activeOfferFilter),
     ]);
 
-    const revenueToday = revenueAgg?.[0]?.revenue || 0;
+    const [latestProducts, latestOffers] = await Promise.all([
+      Product.find({})
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .select("name slug price images createdAt")
+        .lean(),
+      Offer.find({})
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .select("title discountType amount price active startsAt endsAt banner.url createdAt product")
+        .populate("product", "name slug images price")
+        .lean(),
+    ]);
+
+    // Orders are optional — compute if model exists
+    let orderCount = 0;
+    let latestOrders = [];
+    if (Order) {
+      orderCount = await Order.countDocuments({});
+      latestOrders = await Order.find({})
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .select("orderNumber status total createdAt")
+        .lean();
+    }
 
     res.json({
-      productsCount,
-      ordersCount,
-      revenueToday,
-      lowStockCount,
+      ok: true,
+      counts: {
+        products: productCount,
+        offers: offerCount,
+        activeOffers: activeOfferCount,
+        orders: orderCount,
+      },
+      latest: {
+        products: latestProducts,
+        offers: latestOffers,
+        orders: latestOrders,
+      },
+      // Backward compatibility for UIs that read these top-level keys:
+      latestProducts,
+      latestOffers,
+      latestOrders,
     });
   } catch (err) {
     next(err);

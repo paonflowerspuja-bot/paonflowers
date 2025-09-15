@@ -135,7 +135,7 @@ const Navbar = () => {
           <UserMenu />
 
           {/* Admin (top bar, md+) */}
-          {showAdmin && (
+          {/* {showAdmin && (
             <Link
               to="/admin"
               className="text-decoration-none text-muted d-none d-md-inline"
@@ -144,7 +144,7 @@ const Navbar = () => {
             >
               Admin
             </Link>
-          )}
+          )} */}
 
           {/* Cart */}
           <Link

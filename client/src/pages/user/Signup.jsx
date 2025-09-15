@@ -10,11 +10,12 @@ import {
 import AuthForm from "../../components/AuthForm";
 
 function normalizeUAEPhone(input) {
-  const digits = (input || "").replace(/\D/g, "");
+  const raw = String(input || "").replace(/\s+/g, "");
+  if (raw.startsWith("+")) return raw;
+  const digits = raw.replace(/\D/g, "");
   if (digits.startsWith("971")) return `+${digits}`;
   if (digits.startsWith("05")) return `+971${digits.slice(1)}`;
   if (digits.startsWith("5")) return `+971${digits}`;
-  if ((input || "").startsWith("+")) return input.replace(/\s+/g, "");
   return `+${digits}`;
 }
 
@@ -52,27 +53,42 @@ export default function Signup() {
       const normalized = normalizeUAEPhone(formData.phone);
       if (!/^\+\d{10,15}$/.test(normalized))
         throw new Error("Please enter a valid UAE number");
-      await sendOtpAPI(normalized);
+
+      const res = await sendOtpAPI(normalized);
+      const dbg = res?.data?.debugCode;
+      if (dbg) setError(`OTP (dev): ${dbg}`);
+
       setFormData((f) => ({ ...f, phone: normalized }));
       setStep("code");
       setResendAt(Date.now() + 30_000);
     } catch (e) {
-      setError(e?.response?.data?.message || e.message || "Failed to send OTP");
+      setError(e?.data?.error || e?.message || "Failed to send OTP");
     } finally {
       setBusy(false);
     }
   };
 
   const onVerifyOtp = async () => {
-    if ((formData.code || "").length !== 6)
-      return setError("Enter the 6-digit code");
+    const code = String(formData.code || "").replace(/\D/g, "");
+    if (code.length !== 6) return setError("Enter the 6-digit code");
     setError("");
     try {
       setBusy(true);
-      const { data } = await verifyOtpAPI(formData.phone, formData.code);
-      const { token, user } = data || {};
+
+      const phone = normalizeUAEPhone(formData.phone);
+      console.log("VERIFY payload →", { phone, code }); // diag
+
+      const res = await verifyOtpAPI(phone, code);
+      const { token, user } = res?.data || {};
       if (!token) throw new Error("No token");
+
       localStorage.setItem("pf_token", token);
+
+      // Admin straight to /admin
+      if (user?.isAdmin) {
+        login(user);
+        return navigate("/admin");
+      }
 
       if (user?.profileComplete && user?.name && user?.location) {
         login(user);
@@ -81,7 +97,7 @@ export default function Signup() {
         setStep("details");
       }
     } catch (e) {
-      setError(e?.response?.data?.message || "Invalid/expired OTP");
+      setError(e?.data?.error || e?.message || "Invalid/expired OTP");
     } finally {
       setBusy(false);
     }
@@ -97,11 +113,12 @@ export default function Signup() {
         location: formData.location,
         dob: formData.dob,
       });
-      const { data } = await getMeAPI();
-      login(data?.user);
-      navigate("/");
+      const res = await getMeAPI();
+      const u = res?.data?.user || null;
+      login(u);
+      navigate(u?.isAdmin ? "/admin" : "/");
     } catch (e) {
-      setError(e?.response?.data?.message || "Could not save details");
+      setError(e?.data?.error || "Could not save details");
     } finally {
       setBusy(false);
     }
@@ -111,6 +128,7 @@ export default function Signup() {
     <div className="container py-5">
       <div className="row justify-content-center">
         <div className="col-12 col-md-8 col-lg-5">
+          {/* error area also shows dev OTP without style changes */}
           <AuthForm
             type="signup"
             step={step}

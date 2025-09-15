@@ -1,18 +1,19 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { sendOtpAPI, verifyOtpAPI, getMeAPI } from "../../utils/api";
+import AuthForm from "../../components/AuthForm";
 
+// Always normalize to E.164 (+971...) before calling the API
 function normalizeUAEPhone(input) {
-  const digits = (input || "").replace(/\D/g, "");
+  const raw = String(input || "").replace(/\s+/g, "");
+  if (raw.startsWith("+")) return raw;
+  const digits = raw.replace(/\D/g, "");
   if (digits.startsWith("971")) return `+${digits}`;
   if (digits.startsWith("05")) return `+971${digits.slice(1)}`;
   if (digits.startsWith("5")) return `+971${digits}`;
-  if ((input || "").startsWith("+")) return input.replace(/\s+/g, "");
   return `+${digits}`;
 }
-
-import AuthForm from "../../components/AuthForm";
 
 export default function Login() {
   const { login } = useAuth();
@@ -40,37 +41,56 @@ export default function Login() {
       const normalized = normalizeUAEPhone(formData.phone);
       if (!/^\+\d{10,15}$/.test(normalized))
         throw new Error("Please enter a valid UAE number");
-      await sendOtpAPI(normalized);
-      setFormData((f) => ({ ...f, phone: normalized })); // store normalized
+
+      const res = await sendOtpAPI(normalized);
+      const dbg = res?.data?.debugCode;
+      if (dbg) setError(`OTP (dev): ${dbg}`); // visible during dev
+
+      // store normalized phone so verify uses the exact same value
+      setFormData((f) => ({ ...f, phone: normalized }));
       setStep("code");
       setResendAt(Date.now() + 30_000);
     } catch (e) {
-      setError(e?.response?.data?.message || e.message || "Failed to send OTP");
+      setError(e?.data?.error || e?.message || "Failed to send OTP");
     } finally {
       setBusy(false);
     }
   };
 
   const onVerifyOtp = async () => {
-    if ((formData.code || "").length !== 6)
-      return setError("Enter the 6-digit code");
+    const code = String(formData.code || "").replace(/\D/g, "");
+    if (code.length !== 6) return setError("Enter the 6-digit code");
     setError("");
+
     try {
       setBusy(true);
-      const { data } = await verifyOtpAPI(formData.phone, formData.code);
-      const { token, user } = data || {};
+
+      // Always re-normalize just in case user went back and edited
+      const phone = normalizeUAEPhone(formData.phone);
+      console.log("VERIFY payload →", { phone, code }); // diag
+
+      const res = await verifyOtpAPI(phone, code);
+      const { token, user } = res?.data || {};
       if (!token) throw new Error("No token");
+
       localStorage.setItem("pf_token", token);
-      const { data: me } = await getMeAPI().catch(() => ({ data: {} }));
-      const u = me?.user || user;
+
+      const me = await getMeAPI().catch(() => ({ data: {} }));
+      const u = me?.data?.user || user;
+
+      // log into context
       login(u);
-      if (!u?.profileComplete || !u?.name || !u?.location) {
+
+      // Admin → /admin; others → profile completion or home
+      if (u?.isAdmin) {
+        navigate("/admin");
+      } else if (!u?.profileComplete || !u?.name || !u?.location) {
         navigate("/signup?complete=1");
       } else {
         navigate("/");
       }
     } catch (e) {
-      setError(e?.response?.data?.message || "Invalid/expired OTP");
+      setError(e?.data?.error || e?.message || "Invalid/expired OTP");
     } finally {
       setBusy(false);
     }
@@ -80,6 +100,7 @@ export default function Login() {
     <div className="container py-5">
       <div className="row justify-content-center">
         <div className="col-12 col-md-8 col-lg-5">
+          {/* passing error shows dev OTP or validation message without style changes */}
           <AuthForm
             type="login"
             step={step}

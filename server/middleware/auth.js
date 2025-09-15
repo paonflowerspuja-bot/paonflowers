@@ -1,93 +1,59 @@
+// server/middleware/auth.js
 import jwt from "jsonwebtoken";
-import User from "../models/User.js"; // ensure this path is correct for your project
+import User from "../models/User.js";
 
-// Dev flags from .env
-const DEV_BYPASS = process.env.ALLOW_UNAUTH_ADMIN === "true";
-const DEV_USER_ID_ENV = process.env.DEV_USER_ID || "000000000000000000000000"; // valid 24-hex fallback
-const DEV_USER_ROLE = process.env.DEV_USER_ROLE || "admin";
-const DEV_USER_PHONE = process.env.DEV_USER_PHONE || "+971000000000";
-const DEV_USER_NAME = process.env.DEV_USER_NAME || "Dev Admin";
+const JWT_SECRET = process.env.JWT_SECRET || "change_me";
 
-// simple 24-hex validator
-const isValidObjectIdString = (s) => /^[a-f0-9]{24}$/i.test(s);
+// DEV BYPASS FLAGS
+const BYPASS_AUTH =
+  String(process.env.SKIP_AUTH || "").toLowerCase() === "true";
+const DEV_AS_ADMIN =
+  String(process.env.DEV_AS_ADMIN ?? "true").toLowerCase() === "true";
 
-// Create the dev user once if missing
-let ensuredDevUser = false;
-async function ensureDevUser() {
-  if (ensuredDevUser) return;
+const normalizePhone = (raw) =>
+  String(raw || "")
+    .replace(/[^\d+]/g, "")
+    .replace(/^00/, "+");
 
-  const devId = isValidObjectIdString(DEV_USER_ID_ENV)
-    ? DEV_USER_ID_ENV
-    : "000000000000000000000000";
-
-  // find or create
-  const existing = await User.findById(devId).lean();
-  if (!existing) {
-    await User.create({
-      _id: devId,           // force the known id
-      name: DEV_USER_NAME,
-      phone: DEV_USER_PHONE,
-      role: DEV_USER_ROLE,  // admin
-      isPhoneVerified: true,
-    });
-  }
-  ensuredDevUser = true;
-}
-
-// helper to attach a safe req.user during bypass
-function setDevUser(req) {
-  const devId = isValidObjectIdString(DEV_USER_ID_ENV)
-    ? DEV_USER_ID_ENV
-    : "000000000000000000000000";
-
-  req.user = {
-    id: devId,
-    role: DEV_USER_ROLE,
-    phone: DEV_USER_PHONE,
-    name: DEV_USER_NAME,
-    _bypass: true, // in case any controller wants to know
-  };
-}
-
-export async function auth(req, res, next) {
-  if (DEV_BYPASS) {
-    try {
-      await ensureDevUser(); // make sure the user exists
-      setDevUser(req);       // and attach it
-      return next();
-    } catch (e) {
-      return res.status(500).json({ message: "Dev bypass init failed", error: String(e) });
-    }
-  }
-
-  const token =
-    req.headers.authorization?.split(" ")[1] || req.cookies?.token;
-  if (!token) return res.status(401).json({ message: "Not authenticated" });
-
+export default async function auth(req, res, next) {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { id, role, ... }
+    if (BYPASS_AUTH) {
+      const phone = normalizePhone(process.env.ADMIN_PHONE) || "+971000000000";
+      if (!global.__AUTH_BYPASS_LOGGED) {
+        console.log(
+          `🔓 SKIP_AUTH active → all requests authenticated as ${
+            DEV_AS_ADMIN ? "ADMIN" : "USER"
+          } (${phone})`
+        );
+        global.__AUTH_BYPASS_LOGGED = true;
+      }
+      req.user = {
+        _id: "dev-user",
+        phone,
+        name: "Dev User",
+        isAdmin: !!DEV_AS_ADMIN, // boolean style
+        role: DEV_AS_ADMIN ? "admin" : "user", // string style
+      };
+      return next();
+    }
+
+    // normal JWT path
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+    if (!token) throw new Error("Missing token");
+
+    const payload = jwt.verify(token, JWT_SECRET);
+    const user = await User.findById(payload.id);
+    if (!user) throw new Error("User not found");
+
+    // Ensure both shapes exist on real users too
+    req.user = {
+      ...user.toObject(),
+      isAdmin: !!user.isAdmin || user.role === "admin",
+      role: user.role || (user.isAdmin ? "admin" : "user"),
+    };
     next();
   } catch {
-    return res.status(401).json({ message: "Invalid/Expired token" });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 }
-
-export async function isAdmin(req, res, next) {
-  if (DEV_BYPASS) {
-    try {
-      await ensureDevUser();
-      setDevUser(req);
-      return next();
-    } catch (e) {
-      return res.status(500).json({ message: "Dev bypass init failed", error: String(e) });
-    }
-  }
-
-  if (!req.user || req.user.role !== "admin") {
-    return res.status(403).json({ message: "Admin access required" });
-  }
-  next();
-}
-
-export default auth;

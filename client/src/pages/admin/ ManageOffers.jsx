@@ -1,4 +1,3 @@
-// src/pages/admin/ManageOffers.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import api from "../../utils/api";
 
@@ -10,13 +9,13 @@ const fmt = (n) =>
 const defaultForm = {
   title: "",
   description: "",
-  code: "",
   discountType: "percent", // "percent" | "flat"
-  discountValue: 10,
-  minSubtotal: 0,
-  active: true,
+  discountValue: 10,       // maps to server "amount"
+  price: 0,                // explicit product price on offer card
   startsAt: "",
   endsAt: "",
+  banner: null,            // { url, public_id }
+  active: true,            // optional; server recomputes from window
 };
 
 export default function ManageOffers() {
@@ -32,6 +31,7 @@ export default function ManageOffers() {
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   const fetchOffers = async (opts = {}) => {
     const curPage = opts.page || page;
@@ -43,8 +43,8 @@ export default function ManageOffers() {
         page: String(curPage),
         sort: "-createdAt",
       });
-      // IMPORTANT: no `/api` prefix here
-      const { data } = await api.get(`/offers?${params.toString()}`);
+      // ✅ use canonical API path to avoid 404
+      const { data } = await api.get(`/api/offers?${params.toString()}`);
       const items = Array.isArray(data) ? data : data.items || data.offers || [];
       const t = Array.isArray(data) ? items.length : data.total ?? data.count ?? items.length;
       setList(items);
@@ -57,12 +57,53 @@ export default function ManageOffers() {
     }
   };
 
+  const validateDates = ({ startsAt, endsAt }) => {
+    if (startsAt && endsAt) {
+      const s = new Date(startsAt);
+      const e = new Date(endsAt);
+      if (!isNaN(s) && !isNaN(e) && e <= s) return "Ends must be after Starts";
+    }
+    return null;
+  };
+
+  const uploadBanner = async (file) => {
+    if (!file) return null;
+    setUploadingBanner(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { data } = await api.post("/api/uploads/offer", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return data; // { url, public_id, ... }
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
   const createOffer = async (e) => {
     e.preventDefault();
+    const dateErr = validateDates(form);
+    if (dateErr) return alert(dateErr);
+    if (!(form.discountValue > 0)) return alert("Discount value must be > 0");
+    if (!(form.price >= 0)) return alert("Price is required");
+
     try {
       setSaving(true);
-      const payload = { ...form };
-      const { data } = await api.post("/offers", payload); // no /api
+      const payload = {
+        title: form.title,
+        description: form.description,
+        discountType: form.discountType,
+        amount: Number(form.discountValue) || 0,
+        price: Number(form.price) || 0,
+        startsAt: form.startsAt || undefined,
+        endsAt: form.endsAt || undefined,
+        banner: form.banner || undefined,
+        active: !!form.active,
+        // no code, no product id
+      };
+
+      const { data } = await api.post("/api/offers", payload);
       setList((prev) => [data, ...prev.slice(0, limit - 1)]);
       setForm(defaultForm);
       window.dispatchEvent(new CustomEvent("offers:changed"));
@@ -73,15 +114,35 @@ export default function ManageOffers() {
     }
   };
 
-  const openEdit = (o) => setEditing(o);
+  const openEdit = (o) => setEditing({ ...o });
 
   const updateOffer = async (e) => {
     e.preventDefault();
     if (!editing?._id) return;
+    const dateErr = validateDates(editing);
+    if (dateErr) return alert(dateErr);
+    if (editing.amount != null && !(Number(editing.amount) > 0)) {
+      return alert("Discount value must be > 0");
+    }
+    if (editing.price == null || !(Number(editing.price) >= 0)) {
+      return alert("Price is required");
+    }
+
     try {
       setSaving(true);
-      const payload = { ...editing };
-      const { data } = await api.put(`/offers/${editing._id}`, payload); // no /api
+      const payload = {
+        title: editing.title,
+        description: editing.description,
+        discountType: editing.discountType,
+        amount: Number(editing.amount ?? 0),
+        price: Number(editing.price ?? 0),
+        startsAt: editing.startsAt || undefined,
+        endsAt: editing.endsAt || undefined,
+        banner: editing.banner || undefined,
+        active: !!editing.active,
+      };
+
+      const { data } = await api.patch(`/api/offers/${editing._id}`, payload);
       setList((prev) => prev.map((o) => (o._id === data._id ? data : o)));
       setEditing(null);
       window.dispatchEvent(new CustomEvent("offers:changed"));
@@ -95,7 +156,7 @@ export default function ManageOffers() {
   const deleteOffer = async (id) => {
     if (!confirm("Delete this offer?")) return;
     try {
-      await api.delete(`/offers/${id}`); // no /api
+      await api.delete(`/api/offers/${id}`);
       setList((prev) => prev.filter((o) => o._id !== id));
       window.dispatchEvent(new CustomEvent("offers:changed"));
     } catch (e) {
@@ -128,17 +189,9 @@ export default function ManageOffers() {
             required
           />
         </div>
-        <div className="col-12 col-md-3">
-          <label className="form-label">Code</label>
-          <input
-            className="form-control"
-            value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-            required
-          />
-        </div>
+
         <div className="col-6 col-md-2">
-          <label className="form-label">Type</label>
+          <label className="form-label">Discount Type</label>
           <select
             className="form-select"
             value={form.discountType}
@@ -148,8 +201,9 @@ export default function ManageOffers() {
             <option value="flat">Flat ({CURRENCY})</option>
           </select>
         </div>
+
         <div className="col-6 col-md-2">
-          <label className="form-label">Value</label>
+          <label className="form-label">Discount Value</label>
           <input
             type="number"
             className="form-control"
@@ -159,23 +213,16 @@ export default function ManageOffers() {
             required
           />
         </div>
+
         <div className="col-6 col-md-2">
-          <label className="form-label">Min Subtotal</label>
+          <label className="form-label">Price</label>
           <input
             type="number"
             className="form-control"
-            value={form.minSubtotal}
-            onChange={(e) => setForm({ ...form, minSubtotal: Number(e.target.value) })}
+            value={form.price}
+            onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
             min="0"
-          />
-        </div>
-
-        <div className="col-12">
-          <label className="form-label">Description</label>
-          <input
-            className="form-control"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            required
           />
         </div>
 
@@ -195,24 +242,45 @@ export default function ManageOffers() {
             className="form-control"
             value={form.endsAt}
             onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
+            required
           />
         </div>
 
-        <div className="col-6 col-md-2">
-          <div className="form-check mt-4">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              id="activeOffer"
-              checked={!!form.active}
-              onChange={(e) => setForm({ ...form, active: e.target.checked })}
-            />
-            <label htmlFor="activeOffer" className="form-check-label">Active</label>
-          </div>
+        <div className="col-12">
+          <label className="form-label">Description</label>
+          <input
+            className="form-control"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </div>
+
+        {/* Banner uploader */}
+        <div className="col-12 col-md-4">
+          <label className="form-label">Product Image (Cloudinary)</label>
+          <input
+            type="file"
+            accept="image/*"
+            className="form-control"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              try {
+                const uploaded = await uploadBanner(f);
+                setForm((prev) => ({ ...prev, banner: uploaded }));
+              } catch (e) {
+                alert(e?.response?.data?.message || e?.message || "Failed to upload image");
+              }
+            }}
+            disabled={uploadingBanner}
+          />
+          {form.banner?.url && (
+            <img src={form.banner.url} alt="banner" className="mt-2 rounded" style={{ maxHeight: 100 }} />
+          )}
         </div>
 
         <div className="col-12 col-md-2 ms-auto">
-          <button className="btn btn-pink w-100" type="submit" disabled={saving}>
+          <button className="btn btn-pink w-100" type="submit" disabled={saving || uploadingBanner}>
             {saving ? "Saving…" : "+ Add Offer"}
           </button>
         </div>
@@ -234,11 +302,12 @@ export default function ManageOffers() {
                   <tr>
                     <th>#</th>
                     <th>Title</th>
-                    <th>Code</th>
                     <th>Type</th>
-                    <th>Value</th>
+                    <th>Discount</th>
+                    <th>Price</th>
                     <th>Status</th>
-                    <th style={{ width: 180 }}>Actions</th>
+                    <th>Image</th>
+                    <th style={{ width: 220 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -246,13 +315,14 @@ export default function ManageOffers() {
                     <tr key={o._id}>
                       <td>{(page - 1) * limit + idx + 1}</td>
                       <td>{o.title}</td>
-                      <td><code>{o.code}</code></td>
                       <td>{o.discountType}</td>
-                      <td>{o.discountType === "percent" ? `${o.discountValue}%` : fmt(o.discountValue)}</td>
+                      <td>{o.discountType === "percent" ? `${o.amount ?? 0}%` : fmt(o.amount ?? 0)}</td>
+                      <td>{fmt(o.price ?? 0)}</td>
                       <td>{o.active ? <span className="badge bg-success">Active</span> : <span className="badge bg-secondary">Inactive</span>}</td>
+                      <td>{o.banner?.url ? <img src={o.banner.url} alt="banner" style={{ height: 36 }} /> : <span className="text-muted small">—</span>}</td>
                       <td>
                         <div className="btn-group btn-group-sm">
-                          <button className="btn btn-outline-secondary" onClick={() => openEdit(o)}>Edit</button>
+                          <button className="btn btn-outline-secondary" onClick={() => setEditing(o)}>Edit</button>
                           <button className="btn btn-outline-danger" onClick={() => deleteOffer(o._id)}>Delete</button>
                         </div>
                       </td>
@@ -260,7 +330,7 @@ export default function ManageOffers() {
                   ))}
                   {!list.length && (
                     <tr>
-                      <td colSpan={7} className="text-center p-4 text-muted">No offers found</td>
+                      <td colSpan={8} className="text-center p-4 text-muted">No offers found</td>
                     </tr>
                   )}
                 </tbody>
@@ -287,7 +357,7 @@ export default function ManageOffers() {
       {/* Edit Modal */}
       {editing && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,.35)" }}>
-          <div className="modal-dialog">
+          <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <form onSubmit={updateOffer}>
                 <div className="modal-header">
@@ -295,19 +365,74 @@ export default function ManageOffers() {
                   <button type="button" className="btn-close" onClick={() => setEditing(null)} />
                 </div>
                 <div className="modal-body">
-                  <label className="form-label">Title</label>
-                  <input className="form-control mb-3" value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} required />
-                  <label className="form-label">Description</label>
-                  <input className="form-control mb-3" value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
-                  <label className="form-label">Active</label>
-                  <div className="form-check">
-                    <input className="form-check-input" type="checkbox" checked={!!editing.active} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} />
-                    <label className="form-check-label">Active</label>
+                  <div className="row g-3">
+                    <div className="col-12 col-md-6">
+                      <label className="form-label">Title</label>
+                      <input className="form-control" value={editing.title || ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} required />
+                    </div>
+
+                    <div className="col-6 col-md-3">
+                      <label className="form-label">Type</label>
+                      <select className="form-select" value={editing.discountType || "percent"} onChange={(e) => setEditing({ ...editing, discountType: e.target.value })}>
+                        <option value="percent">Percent %</option>
+                        <option value="flat">Flat ({CURRENCY})</option>
+                      </select>
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <label className="form-label">Discount</label>
+                      <input type="number" className="form-control" value={editing.amount ?? 0} onChange={(e) => setEditing({ ...editing, amount: Number(e.target.value) })} min="0" />
+                    </div>
+
+                    <div className="col-6 col-md-3">
+                      <label className="form-label">Price</label>
+                      <input type="number" className="form-control" value={editing.price ?? 0} onChange={(e) => setEditing({ ...editing, price: Number(e.target.value) })} min="0" />
+                    </div>
+
+                    <div className="col-6 col-md-3">
+                      <label className="form-label">Starts</label>
+                      <input type="datetime-local" className="form-control" value={editing.startsAt || ""} onChange={(e) => setEditing({ ...editing, startsAt: e.target.value })} />
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <label className="form-label">Ends</label>
+                      <input type="datetime-local" className="form-control" value={editing.endsAt || ""} onChange={(e) => setEditing({ ...editing, endsAt: e.target.value })} />
+                    </div>
+
+                    <div className="col-12">
+                      <label className="form-label">Description</label>
+                      <input className="form-control" value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
+                    </div>
+
+                    <div className="col-12 col-md-6">
+                      <label className="form-label">Product Image</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="form-control"
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          try {
+                            const uploaded = await uploadBanner(f);
+                            setEditing((prev) => ({ ...prev, banner: uploaded }));
+                          } catch (e) {
+                            alert(e?.response?.data?.message || e?.message || "Failed to upload image");
+                          }
+                        }}
+                      />
+                      {editing.banner?.url && <img src={editing.banner.url} alt="banner" className="mt-2 rounded" style={{ maxHeight: 100 }} />}
+                    </div>
+
+                    <div className="col-12 col-md-3">
+                      <div className="form-check mt-4">
+                        <input className="form-check-input" type="checkbox" id="activeOfferEdit" checked={!!editing.active} onChange={(e) => setEditing({ ...editing, active: e.target.checked })} />
+                        <label htmlFor="activeOfferEdit" className="form-check-label">Active</label>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-outline-secondary" onClick={() => setEditing(null)}>Cancel</button>
-                  <button type="submit" className="btn btn-pink" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+                  <button type="submit" className="btn btn-pink" disabled={saving || uploadingBanner}>{saving ? "Saving…" : "Save changes"}</button>
                 </div>
               </form>
             </div>

@@ -1,5 +1,5 @@
-// src/pages/admin/ManageProducts.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// client/src/pages/admin/ManageProducts.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import api from "../../utils/api";
 
 const CURRENCY = import.meta.env.VITE_CURRENCY || "AED";
@@ -10,372 +10,253 @@ const fmt = (n) =>
     currency: CURRENCY,
   }).format(Number(n) || 0);
 
-// small helper to notify other admin pages (e.g., dashboard) + any listeners
-const emitProductsChanged = () => {
-  window.dispatchEvent(new CustomEvent("products:changed"));
-};
+// Helper to build FormData from plain object
+function buildFormData(obj) {
+  const fd = new FormData();
+  Object.entries(obj || {}).forEach(([k, v]) => {
+    if (v === undefined || v === null) return;
+    if (k === "offerId" && String(v).trim() === "") return;
+    if (k === "tags") {
+      if (Array.isArray(v)) fd.append("tags", JSON.stringify(v));
+      else fd.append("tags", v);
+    } else if (k === "image" && v instanceof File) {
+      fd.append("image", v);
+    } else {
+      fd.append(k, String(v));
+    }
+  });
+  return fd;
+}
 
-const defaultForm = {
+const emptyForm = {
   name: "",
-  price: "",
   description: "",
-  category: "",
+  price: "",
   stock: 100,
+
+  // categorization
+  flowerType: "",
+  flowerColor: "",
+  occasion: "",
+  collection: "",
+
   isFeatured: false,
-  isActive: true,
+
+  // offers
+  discount: "", // number (optional)
+  offerId: "", // optional
+
+  tags: "",
+  image: null, // File
 };
 
-const ManageProducts = () => {
-  // list / fetch state
-  const [list, setList] = useState([]);
+export default function ManageProducts() {
+  // list state
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(12);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // filters & pagination
-  const [q, setQ] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-  const [total, setTotal] = useState(0);
-
-  // create/edit
-  const [form, setForm] = useState(defaultForm);
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState("");
+  // form state
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null); // product being edited
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  // edit modal
-  const [editing, setEditing] = useState(null); // product object
-  const [editFile, setEditFile] = useState(null);
-  const [editPreview, setEditPreview] = useState("");
-
-  // categories (optional — if you have endpoint)
-  const [categories, setCategories] = useState([]);
-
-  // image preview handlers
-  useEffect(() => {
-    if (!file) return setPreview("");
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  useEffect(() => {
-    if (!editFile) return setEditPreview("");
-    const url = URL.createObjectURL(editFile);
-    setEditPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [editFile]);
-
-  const fetchProducts = async (opts = {}) => {
-    const curPage = opts.page || page;
-    setLoading(true);
-    setErr("");
-    try {
-      const params = new URLSearchParams();
-      if (q) params.set("q", q);
-      if (categoryFilter) params.set("category", categoryFilter);
-      params.set("limit", String(limit));
-      params.set("page", String(curPage));
-      params.set("sort", "-createdAt");
-
-      // api base already points to `${HOST}/api`
-      const { data } = await api.get(`/products?${params.toString()}`);
-      // support both shapes: {items,total} or array
-      const items = Array.isArray(data) ? data : data.items || data.products || [];
-      const t = Array.isArray(data) ? items.length : data.total ?? data.count ?? items.length;
-
-      setList(items);
-      setTotal(t);
-      if (opts.page) setPage(opts.page);
-    } catch (e) {
-      setErr(e?.response?.data?.message || e?.message || "Failed to load products");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      // optional endpoint; if you don’t have it, this silently keeps an empty list
-      const { data } = await api.get("/categories");
-      const arr = Array.isArray(data) ? data : data.items || data.categories || [];
-      setCategories(arr);
-    } catch {}
-  };
-
-  useEffect(() => {
-    fetchProducts({ page: 1 });
-    fetchCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const doSearch = () => fetchProducts({ page: 1 });
-
-  const createProduct = async (e) => {
-    e.preventDefault();
-    try {
-      setSaving(true);
-      const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
-      if (file) fd.append("file", file);
-
-      const { data } = await api.post("/products", fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      // optimistic update
-      setList((prev) => [data, ...prev.slice(0, limit - 1)]);
-      setForm(defaultForm);
-      setFile(null);
-      setPreview("");
-      emitProductsChanged();
-    } catch (e) {
-      alert(e?.response?.data?.message || e?.message || "Failed to create product");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const openEdit = (p) => {
-    setEditing(p);
-    setEditFile(null);
-    setEditPreview("");
-  };
-
-  const updateProduct = async (e) => {
-    e.preventDefault();
-    if (!editing?._id) return;
-
-    try {
-      setSaving(true);
-
-      // if image is replaced, send multipart; else send JSON
-      if (editFile) {
-        const fd = new FormData();
-        // keep basic fields editable
-        fd.append("name", editing.name || "");
-        fd.append("price", editing.price ?? 0);
-        fd.append("description", editing.description || "");
-        fd.append("category", editing.category || "");
-        fd.append("stock", editing.stock ?? 0);
-        fd.append("isFeatured", editing.isFeatured ? "true" : "false");
-        fd.append("isActive", editing.isActive ? "true" : "false");
-        fd.append("file", editFile);
-
-        const { data } = await api.put(`/products/${editing._id}`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        applyLocalUpdate(data);
-      } else {
-        const payload = {
-          name: editing.name,
-          price: editing.price,
-          description: editing.description,
-          category: editing.category,
-          stock: editing.stock,
-          isFeatured: !!editing.isFeatured,
-          isActive: !!editing.isActive,
-        };
-        const { data } = await api.put(`/products/${editing._id}`, payload);
-        applyLocalUpdate(data);
-      }
-      setEditing(null);
-      emitProductsChanged();
-    } catch (e) {
-      alert(e?.response?.data?.message || e?.message || "Failed to update product");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const applyLocalUpdate = (updated) => {
-    setList((prev) =>
-      prev.map((p) =>
-        p._id === (updated?._id || updated?.id) ? { ...p, ...updated } : p
-      )
-    );
-  };
-
-  const deleteProduct = async (id) => {
-    if (!window.confirm("Delete this product?")) return;
-    try {
-      await api.delete(`/products/${id}`);
-      setList((prev) => prev.filter((p) => p._id !== id));
-      emitProductsChanged();
-    } catch (e) {
-      alert(e?.response?.data?.message || e?.message || "Failed to delete product");
-    }
-  };
+  // categories (from server)
+  const [cats, setCats] = useState({
+    types: [],
+    colors: [],
+    occasions: [],
+    collections: [],
+  });
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(total / limit)),
     [total, limit]
   );
 
+  const loadCategories = async () => {
+    try {
+      const { data } = await api.get("/api/categories");
+      setCats({
+        types: data?.types || [],
+        colors: data?.colors || [],
+        occasions: data?.occasions || [],
+        collections: data?.collections || [],
+      });
+    } catch {
+      // fallback (hardcoded) if API missing
+      setCats({
+        types: ["Hydrangeia", "Rose", "Lemonium", "Lilly", "Tulip", "Foliage"],
+        colors: ["Red", "Pink", "White", "Yellow"],
+        occasions: [
+          "Birthday",
+          "Valentine Day",
+          "Graduation Day",
+          "New Baby",
+          "Mother's Day",
+          "Bridal Boutique",
+          "Eid",
+        ],
+        collections: ["Summer Collection", "Balloons", "Teddy Bear"],
+      });
+    }
+  };
+
+  const fetchProducts = async (p = page) => {
+    setLoading(true);
+    setErr("");
+    try {
+      const params = new URLSearchParams({
+        page: String(p),
+        limit: String(limit),
+        sort: "-createdAt",
+      });
+      const { data } = await api.get(`/api/products?${params.toString()}`);
+      const arr = Array.isArray(data) ? data : data.items || [];
+      const t = Array.isArray(data)
+        ? arr.length
+        : data.total ?? data.count ?? arr.length;
+      setItems(arr);
+      setTotal(t);
+      setPage(p);
+    } catch (e) {
+      setErr(e?.response?.data?.message || e?.message || "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+    fetchProducts(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setShowForm(true);
+  };
+
+  const openEdit = (p) => {
+    setEditing(p);
+    setForm({
+      name: p.name || "",
+      description: p.description || "",
+      price: p.price ?? "",
+      stock: p.stock ?? 100,
+      flowerType: p.flowerType || "",
+      flowerColor: p.flowerColor || "",
+      occasion: p.occasion || "",
+      collection: p.collection || "",
+      isFeatured: !!p.isFeatured,
+      discount: p.discount ?? "",
+      offerId: p.offerId || "",
+      tags: Array.isArray(p.tags) ? p.tags.join(", ") : p.tags || "",
+      image: null,
+    });
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    if (saving) return;
+    setShowForm(false);
+    setEditing(null);
+    setForm(emptyForm);
+  };
+
+  const onChange = (key, val) => setForm((f) => ({ ...f, [key]: val }));
+
+  const saveProduct = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        price: form.price === "" ? "" : Number(form.price),
+        stock: form.stock === "" ? "" : Number(form.stock),
+        discount: form.discount === "" ? "" : Number(form.discount),
+        // normalize tags (server accepts CSV or JSON)
+        tags:
+          typeof form.tags === "string"
+            ? form.tags
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : form.tags || [],
+      };
+
+      // Build FormData for possible file upload
+      const fd = buildFormData(payload);
+
+      if (editing?._id) {
+        const { data } = await api.patch(`/api/products/${editing._id}`, fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        // merge into list
+        setItems((prev) => prev.map((x) => (x._id === data._id ? data : x)));
+      } else {
+        const { data } = await api.post(`/api/products`, fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        setItems((prev) => [data, ...prev]);
+        setTotal((t) => t + 1);
+      }
+
+      closeForm();
+    } catch (e) {
+      alert(
+        e?.response?.data?.message ||
+          e?.message ||
+          "Failed to save product. Check fields."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteProduct = async (id) => {
+    if (!window.confirm("Delete this product? This cannot be undone.")) return;
+    try {
+      await api.delete(`/api/products/${id}`);
+      setItems((prev) => prev.filter((x) => x._id !== id));
+      setTotal((t) => Math.max(0, t - 1));
+    } catch (e) {
+      alert(e?.response?.data?.message || e?.message || "Delete failed");
+    }
+  };
+
   return (
     <div>
-      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      {/* Header */}
+      <div className="d-flex justify-content-between align-items-center mb-3">
         <h2 className="mb-0">Manage Products</h2>
-
-        <div className="d-flex flex-wrap gap-2">
-          <div className="input-group" style={{ maxWidth: 340 }}>
-            <input
-              className="form-control"
-              placeholder="Search name / description"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && doSearch()}
-            />
-            <button className="btn btn-outline-secondary" onClick={doSearch}>
-              Search
-            </button>
-          </div>
-
-          <select
-            className="form-select"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            style={{ minWidth: 180 }}
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option
-                key={c._id || c.value || c}
-                value={c.slug || c.value || c.name || c}
-              >
-                {c.name || c.label || c}
-              </option>
-            ))}
-          </select>
-
+        <div className="d-flex gap-2">
           <button
             className="btn btn-outline-secondary"
-            onClick={() => fetchProducts({ page: 1 })}
+            onClick={() => fetchProducts(page)}
           >
             Refresh
           </button>
-        </div>
-      </div>
-
-      {/* Create */}
-      <form className="row g-3 mb-4 align-items-end" onSubmit={createProduct}>
-        <div className="col-12 col-md-3">
-          <label className="form-label">Name</label>
-          <input
-            className="form-control"
-            placeholder="e.g., Blush Rose Box"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-          />
-        </div>
-        <div className="col-6 col-md-2">
-          <label className="form-label">Price ({CURRENCY})</label>
-          <input
-            type="number"
-            className="form-control"
-            placeholder="249"
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: e.target.value })}
-            required
-            min="0"
-          />
-        </div>
-        <div className="col-6 col-md-2">
-          <label className="form-label">Stock</label>
-          <input
-            type="number"
-            className="form-control"
-            placeholder="100"
-            value={form.stock}
-            onChange={(e) =>
-              setForm({ ...form, stock: Number(e.target.value) })
-            }
-            min="0"
-          />
-        </div>
-        <div className="col-12 col-md-2">
-          <label className="form-label">Category</label>
-          <input
-            className="form-control"
-            placeholder="e.g., Birthday"
-            value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-          />
-        </div>
-        <div className="col-12 col-md-3">
-          <label className="form-label">Description</label>
-          <input
-            className="form-control"
-            placeholder="Short description"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-        </div>
-
-        <div className="col-12 col-md-3">
-          <label className="form-label">Image</label>
-          <input
-            type="file"
-            className="form-control"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-          {preview && (
-            <img
-              src={preview}
-              alt="preview"
-              className="mt-2 rounded"
-              style={{ width: 100, height: 100, objectFit: "cover" }}
-            />
-          )}
-        </div>
-
-        <div className="col-6 col-md-2">
-          <div className="form-check mt-4">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              id="featuredCreate"
-              checked={!!form.isFeatured}
-              onChange={(e) =>
-                setForm({ ...form, isFeatured: e.target.checked })
-              }
-            />
-            <label htmlFor="featuredCreate" className="form-check-label">
-              Featured
-            </label>
-          </div>
-        </div>
-        <div className="col-6 col-md-2">
-          <div className="form-check mt-4">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              id="activeCreate"
-              checked={!!form.isActive}
-              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-            />
-            <label htmlFor="activeCreate" className="form-check-label">
-              Active
-            </label>
-          </div>
-        </div>
-
-        <div className="col-12 col-md-2 ms-auto">
-          <button className="btn btn-pink w-100" type="submit" disabled={saving}>
-            {saving ? "Saving…" : "+ Add Product"}
+          <button className="btn btn-pink" onClick={openCreate}>
+            + New Product
           </button>
         </div>
-      </form>
+      </div>
 
       {/* List */}
       <div className="card shadow-sm">
         <div className="card-body p-0">
           {loading ? (
             <div className="p-4 text-center">
-              <div className="spinner-border" role="status" aria-hidden="true"></div>
+              <div
+                className="spinner-border"
+                role="status"
+                aria-hidden="true"
+              />
             </div>
           ) : err ? (
             <div className="alert alert-danger m-3">{err}</div>
@@ -385,51 +266,59 @@ const ManageProducts = () => {
                 <thead className="table-light">
                   <tr>
                     <th>#</th>
-                    <th style={{ minWidth: 90 }}>Image</th>
-                    <th>Name</th>
-                    <th>Category</th>
+                    <th>Product</th>
+                    <th>Type</th>
+                    <th>Color</th>
+                    <th>Occasion</th>
+                    <th>Collection</th>
                     <th className="text-end">Price</th>
-                    <th className="text-end">Stock</th>
-                    <th>Flags</th>
-                    <th style={{ width: 160 }}>Actions</th>
+                    <th className="text-center">Featured</th>
+                    <th className="text-center">Discount</th>
+                    <th style={{ width: 200 }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {list.map((p, idx) => {
-                    const img =
-                      p.images?.[0]?.url ||
-                      p.images?.[0] ||
-                      p.image ||
-                      "/assets/placeholder.jpg";
+                  {items.map((p, idx) => {
+                    const thumb =
+                      p?.images?.[0]?.url ||
+                      p?.image ||
+                      "/assets/placeholder.png";
                     return (
                       <tr key={p._id}>
                         <td>{(page - 1) * limit + idx + 1}</td>
                         <td>
-                          <img
-                            src={img}
-                            alt={p.name}
-                            style={{
-                              width: 60,
-                              height: 60,
-                              objectFit: "cover",
-                              borderRadius: 6,
-                            }}
-                            loading="lazy"
-                          />
+                          <div className="d-flex align-items-center">
+                            <img
+                              src={thumb}
+                              alt={p.name}
+                              style={{
+                                width: 44,
+                                height: 44,
+                                objectFit: "cover",
+                                borderRadius: 8,
+                                marginRight: 10,
+                              }}
+                            />
+                            <div>
+                              <div className="fw-semibold">{p.name}</div>
+                              <div className="small text-muted">{p.slug}</div>
+                            </div>
+                          </div>
                         </td>
-                        <td className="fw-semibold">{p.name}</td>
-                        <td>{p.category || "—"}</td>
+                        <td>{p.flowerType || "—"}</td>
+                        <td>{p.flowerColor || "—"}</td>
+                        <td>{p.occasion || "—"}</td>
+                        <td>{p.collection || "—"}</td>
                         <td className="text-end">{fmt(p.price)}</td>
-                        <td className="text-end">{p.stock ?? "—"}</td>
-                        <td>
-                          {!!p.isFeatured && (
-                            <span className="badge bg-danger me-2">Featured</span>
-                          )}
-                          {p.isActive ? (
-                            <span className="badge bg-success">Active</span>
+                        <td className="text-center">
+                          {p.isFeatured ? (
+                            <span className="badge bg-success">Yes</span>
                           ) : (
-                            <span className="badge bg-secondary">Hidden</span>
+                            <span className="badge bg-secondary">No</span>
                           )}
+                        </td>
+                        <td className="text-center">
+                          {p.discount ? `${p.discount}` : "—"}
                         </td>
                         <td>
                           <div className="btn-group btn-group-sm">
@@ -450,9 +339,9 @@ const ManageProducts = () => {
                       </tr>
                     );
                   })}
-                  {!list.length && (
+                  {!items.length && (
                     <tr>
-                      <td colSpan={8} className="text-center p-4 text-muted">
+                      <td colSpan={10} className="text-center p-4 text-muted">
                         No products found
                       </td>
                     </tr>
@@ -466,21 +355,21 @@ const ManageProducts = () => {
         {/* Pagination */}
         <div className="card-footer bg-white d-flex justify-content-between align-items-center">
           <small className="text-muted">
-            Showing {(list?.length && (page - 1) * limit + 1) || 0}–
-            {(page - 1) * limit + list.length} of {total}
+            Showing {(items?.length && (page - 1) * limit + 1) || 0}–
+            {(page - 1) * limit + items.length} of {total}
           </small>
           <div className="btn-group">
             <button
               className="btn btn-outline-secondary btn-sm"
-              disabled={page <= 1}
-              onClick={() => fetchProducts({ page: page - 1 })}
+              disabled={page <= 1 || loading}
+              onClick={() => fetchProducts(page - 1)}
             >
               ← Prev
             </button>
             <button
               className="btn btn-outline-secondary btn-sm"
-              disabled={page >= totalPages}
-              onClick={() => fetchProducts({ page: page + 1 })}
+              disabled={page >= totalPages || loading}
+              onClick={() => fetchProducts(page + 1)}
             >
               Next →
             </button>
@@ -488,147 +377,219 @@ const ManageProducts = () => {
         </div>
       </div>
 
-      {/* Edit Modal (Bootstrap) */}
-      <div
-        className={`modal fade ${editing ? "show d-block" : ""}`}
-        tabIndex="-1"
-        style={{ background: editing ? "rgba(0,0,0,.35)" : "transparent" }}
-        aria-hidden={!editing}
-      >
-        <div className="modal-dialog modal-lg modal-dialog-centered">
-          <div className="modal-content">
-            <form onSubmit={updateProduct}>
-              <div className="modal-header">
-                <h5 className="modal-title">Edit Product</h5>
-                <button type="button" className="btn-close" onClick={() => setEditing(null)} />
-              </div>
-              <div className="modal-body">
-                {editing && (
-                  <div className="row g-3">
-                    <div className="col-12 col-md-6">
-                      <label className="form-label">Name</label>
-                      <input
-                        className="form-control"
-                        value={editing.name || ""}
-                        onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="col-6 col-md-3">
-                      <label className="form-label">Price ({CURRENCY})</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        value={editing.price ?? 0}
-                        onChange={(e) =>
-                          setEditing({ ...editing, price: Number(e.target.value) })
-                        }
-                        min="0"
-                        required
-                      />
-                    </div>
-                    <div className="col-6 col-md-3">
-                      <label className="form-label">Stock</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        value={editing.stock ?? 0}
-                        onChange={(e) =>
-                          setEditing({ ...editing, stock: Number(e.target.value) })
-                        }
-                        min="0"
-                      />
-                    </div>
-                    <div className="col-12 col-md-6">
-                      <label className="form-label">Category</label>
-                      <input
-                        className="form-control"
-                        value={editing.category || ""}
-                        onChange={(e) => setEditing({ ...editing, category: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-12">
-                      <label className="form-label">Description</label>
-                      <textarea
-                        className="form-control"
-                        rows={3}
-                        value={editing.description || ""}
-                        onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                      />
-                    </div>
+      {/* Drawer (right) for Create/Edit */}
+      {showForm && (
+        <>
+          <div
+            className="position-fixed top-0 start-0 w-100 h-100"
+            style={{ background: "rgba(0,0,0,.35)", zIndex: 1050 }}
+            onClick={closeForm}
+          />
+          <div
+            className="position-fixed top-0 end-0 bg-white shadow-lg"
+            style={{
+              width: "min(92vw, 720px)",
+              height: "100vh",
+              zIndex: 1055,
+              overflowY: "auto",
+              borderTopLeftRadius: "0.5rem",
+              borderBottomLeftRadius: "0.5rem",
+            }}
+          >
+            <div className="p-3 border-bottom d-flex align-items-center justify-content-between">
+              <h5 className="mb-0">
+                {editing ? "Edit Product" : "New Product"}
+              </h5>
+              <button type="button" className="btn-close" onClick={closeForm} />
+            </div>
 
-                    <div className="col-12 col-md-6">
-                      <label className="form-label">Replace Image</label>
-                      <input
-                        type="file"
-                        className="form-control"
-                        accept="image/*"
-                        onChange={(e) => setEditFile(e.target.files?.[0] || null)}
-                      />
-                      <div className="d-flex gap-2 mt-2">
-                        <img
-                          src={
-                            editPreview ||
-                            editing.images?.[0]?.url ||
-                            editing.images?.[0] ||
-                            "/assets/placeholder.jpg"
-                          }
-                          alt="preview"
-                          style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 6 }}
-                        />
-                      </div>
-                    </div>
+            <div className="p-3">
+              <div className="row g-3">
+                <div className="col-12">
+                  <label className="form-label">Name</label>
+                  <input
+                    className="form-control"
+                    value={form.name}
+                    onChange={(e) => onChange("name", e.target.value)}
+                    required
+                  />
+                </div>
 
-                    <div className="col-6 col-md-3">
-                      <div className="form-check mt-4">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          id="featuredEdit"
-                          checked={!!editing.isFeatured}
-                          onChange={(e) =>
-                            setEditing({ ...editing, isFeatured: e.target.checked })
-                          }
-                        />
-                        <label htmlFor="featuredEdit" className="form-check-label">
-                          Featured
-                        </label>
-                      </div>
-                    </div>
+                <div className="col-6">
+                  <label className="form-label">Price</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="0"
+                    step="0.01"
+                    value={form.price}
+                    onChange={(e) => onChange("price", e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="col-6">
+                  <label className="form-label">Stock</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="0"
+                    step="1"
+                    value={form.stock}
+                    onChange={(e) => onChange("stock", e.target.value)}
+                  />
+                </div>
 
-                    <div className="col-6 col-md-3">
-                      <div className="form-check mt-4">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          id="activeEdit"
-                          checked={!!editing.isActive}
-                          onChange={(e) =>
-                            setEditing({ ...editing, isActive: e.target.checked })
-                          }
-                        />
-                        <label htmlFor="activeEdit" className="form-check-label">
-                          Active
-                        </label>
-                      </div>
-                    </div>
+                <div className="col-12">
+                  <label className="form-label">Description</label>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    value={form.description}
+                    onChange={(e) => onChange("description", e.target.value)}
+                  />
+                </div>
+
+                {/* Categorization */}
+                <div className="col-6">
+                  <label className="form-label">Flower Type</label>
+                  <select
+                    className="form-select"
+                    value={form.flowerType}
+                    onChange={(e) => onChange("flowerType", e.target.value)}
+                  >
+                    <option value="">—</option>
+                    {cats.types.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-6">
+                  <label className="form-label">Flower Color</label>
+                  <select
+                    className="form-select"
+                    value={form.flowerColor}
+                    onChange={(e) => onChange("flowerColor", e.target.value)}
+                  >
+                    <option value="">—</option>
+                    {cats.colors.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="col-6">
+                  <label className="form-label">Occasion</label>
+                  <select
+                    className="form-select"
+                    value={form.occasion}
+                    onChange={(e) => onChange("occasion", e.target.value)}
+                  >
+                    <option value="">—</option>
+                    {cats.occasions.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-6">
+                  <label className="form-label">Collection</label>
+                  <select
+                    className="form-select"
+                    value={form.collection}
+                    onChange={(e) => onChange("collection", e.target.value)}
+                  >
+                    <option value="">—</option>
+                    {cats.collections.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="col-6">
+                  <label className="form-label">Featured</label>
+                  <div className="form-check form-switch">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      checked={!!form.isFeatured}
+                      onChange={(e) => onChange("isFeatured", e.target.checked)}
+                    />
+                    <label className="form-check-label">
+                      Show on Featured Flowers
+                    </label>
                   </div>
-                )}
+                </div>
+
+                {/* Offers */}
+                <div className="col-6">
+                  <label className="form-label">Discount</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="0"
+                    step="1"
+                    placeholder="e.g. 10"
+                    value={form.discount}
+                    onChange={(e) => onChange("discount", e.target.value)}
+                  />
+                  <div className="form-text">
+                    Interpreted by your UI (percent or AED)
+                  </div>
+                </div>
+
+                <div className="col-12">
+                  <label className="form-label">Tags (comma separated)</label>
+                  <input
+                    className="form-control"
+                    placeholder="e.g. premium, bouquet, red"
+                    value={form.tags}
+                    onChange={(e) => onChange("tags", e.target.value)}
+                  />
+                </div>
+
+                <div className="col-12">
+                  <label className="form-label">Image</label>
+                  <input
+                    type="file"
+                    className="form-control"
+                    accept="image/*"
+                    onChange={(e) =>
+                      onChange("image", e.target.files?.[0] || null)
+                    }
+                  />
+                  <div className="form-text">
+                    If omitted, existing image remains (on edit).
+                  </div>
+                </div>
+
+                <div className="col-12 d-flex justify-content-end gap-2">
+                  <button
+                    className="btn btn-outline-secondary"
+                    onClick={closeForm}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-pink"
+                    onClick={saveProduct}
+                    disabled={saving}
+                  >
+                    {saving ? "Saving…" : editing ? "Save Changes" : "Create"}
+                  </button>
+                </div>
               </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-outline-secondary" onClick={() => setEditing(null)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-pink" disabled={saving}>
-                  {saving ? "Saving…" : "Save changes"}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
-};
-
-export default ManageProducts;
+}

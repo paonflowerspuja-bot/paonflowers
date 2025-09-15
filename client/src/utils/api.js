@@ -1,38 +1,51 @@
 // client/src/utils/api.js
 import axios from "axios";
 
-// Host only (no /api yet)
-export const API_HOST = (
-  import.meta.env.VITE_API_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:8080"
-).replace(/\/+$/, "");
+const RAW =
+  (import.meta.env.VITE_API_URL ||
+    import.meta.env.VITE_API_BASE_URL ||
+    "http://localhost:8080")
+    .toString()
+    .trim();
 
-// Axios instance -> prefix with /api
+export const API_BASE = RAW.replace(/\/+$/, "");
+
 const api = axios.create({
-  baseURL: `${API_HOST}/api`,
+  baseURL: API_BASE,
   withCredentials: false,
+  timeout: 15000,
+  headers: {
+    "Content-Type": "application/json",
+    // ❌ removed "X-Requested-With": "XMLHttpRequest"
+    // "Accept" is fine to omit (axios already sends it as a CORS-safelisted header)
+  },
 });
 
-// Attach token if present
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("pf_token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  try {
+    const token = localStorage.getItem("pf_token");
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+  } catch {}
   return config;
 });
 
-// helpers
-// Use this for building non-/api URLs, e.g. /uploads/...
-export const apiPath = (p = "") => `${API_HOST}${p}`;
-export const imgUrl = (url) =>
-  url?.startsWith("http") ? url : `${API_HOST}${url || ""}`;
-
-// auth APIs
-export const sendOtpAPI = (phone) => api.post("/auth/send-otp", { phone });
-export const verifyOtpAPI = (phone, code) =>
-  api.post("/auth/verify-otp", { phone, code });
-export const getMeAPI = () => api.get("/auth/me");
-export const updateProfileAPI = (payload) =>
-  api.patch("/auth/profile", payload);
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err?.response?.status === 401) {
+      try { localStorage.removeItem("pf_token"); } catch {}
+      window.dispatchEvent(new Event("pf:unauthorized"));
+    }
+    return Promise.reject(err);
+  }
+);
 
 export default api;
+
+export const apiPath = (p = "") => `${API_BASE}${p.startsWith("/") ? "" : "/"}${p}`;
+export const imgUrl = (url) => (/^(https?:|data:|blob:|\/\/)/i.test(url || "")) ? url : `${API_BASE}${url?.startsWith("/") ? "" : "/"}${url || ""}`;
+
+export const sendOtpAPI = (phone) => api.post("/api/auth/send-otp", { phone });
+export const verifyOtpAPI = (phone, code) => api.post("/api/auth/verify-otp", { phone, code });
+export const getMeAPI = () => api.get("/api/auth/me");
+export const updateProfileAPI = (payload) => api.patch("/api/auth/profile", payload);

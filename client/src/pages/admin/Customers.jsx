@@ -506,218 +506,236 @@ const Customers = () => {
       </div>
 
       {/* Details Drawer / Modal */}
-      <div
-        className={`offcanvas offcanvas-end ${selected ? "show" : ""}`}
-        tabIndex="-1"
-        style={{
-          visibility: selected ? "visible" : "hidden",
-          background: selected ? "rgba(0,0,0,.35)" : "transparent",
-        }}
-        aria-hidden={!selected}
-      >
-        <div className="offcanvas-dialog offcanvas-lg">
-          <div className="offcanvas-content">
-            <div className="offcanvas-header">
-              <h5 className="offcanvas-title">Customer Details</h5>
+      {selected && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="position-fixed top-0 start-0 w-100 h-100"
+            style={{ background: "rgba(0,0,0,.35)", zIndex: 1050 }}
+            onClick={closeDetails}
+            aria-hidden="true"
+          />
+
+          {/* Right-side panel */}
+          <div
+            className="position-fixed top-0 end-0 bg-white shadow-lg"
+            style={{
+              width: "min(92vw, 720px)",
+              height: "100vh",
+              zIndex: 1055,
+              overflowY: "auto",
+              borderTopLeftRadius: "0.5rem",
+              borderBottomLeftRadius: "0.5rem",
+            }}
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Header */}
+            <div className="p-3 border-bottom d-flex align-items-center justify-content-between">
+              <h5 className="mb-0">Customer Details</h5>
               <button
                 type="button"
                 className="btn-close"
                 onClick={closeDetails}
-              ></button>
+              />
             </div>
-            <div className="offcanvas-body">
-              {selected && (
-                <>
-                  <div className="d-flex align-items-center gap-3 mb-3">
-                    <img
-                      src={
-                        selected?.avatar?.url ||
-                        selected?.avatar ||
-                        "/assets/avatar-placeholder.png"
-                      }
-                      alt={selected?.name}
-                      style={{
-                        width: 64,
-                        height: 64,
-                        objectFit: "cover",
-                        borderRadius: "50%",
-                      }}
-                    />
-                    <div>
-                      <div className="h5 mb-1">{selected?.name || "—"}</div>
-                      <div className="small text-muted">{selected?._id}</div>
+
+            {/* Body */}
+            <div className="p-3">
+              <>
+                <div className="d-flex align-items-center gap-3 mb-3">
+                  <img
+                    src={
+                      selected?.avatar?.url ||
+                      selected?.avatar ||
+                      "/assets/avatar-placeholder.png"
+                    }
+                    alt={selected?.name}
+                    style={{
+                      width: 64,
+                      height: 64,
+                      objectFit: "cover",
+                      borderRadius: "50%",
+                    }}
+                  />
+                  <div>
+                    <div className="h5 mb-1">{selected?.name || "—"}</div>
+                    <div className="small text-muted">{selected?._id}</div>
+                  </div>
+                  <div className="ms-auto">
+                    {selected?.isBlocked ? (
+                      <span className="badge bg-danger">Blocked</span>
+                    ) : (
+                      <span className="badge bg-success">Active</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="row g-3">
+                  <div className="col-12 col-md-6">
+                    <div className="card shadow-sm h-100">
+                      <div className="card-body">
+                        <h6 className="mb-3">Contact</h6>
+                        <div className="small mb-1">
+                          <i className="bi bi-envelope me-2" />
+                          {selected?.email || "—"}
+                        </div>
+                        <div className="small mb-1">
+                          <i className="bi bi-telephone me-2" />
+                          {selected?.phone || "—"}
+                        </div>
+                        <div className="small">
+                          <i className="bi bi-calendar me-2" />
+                          Joined:{" "}
+                          {selected?.createdAt
+                            ? new Date(selected.createdAt).toLocaleString()
+                            : "—"}
+                        </div>
+                      </div>
                     </div>
-                    <div className="ms-auto">{statusChip(selected)}</div>
                   </div>
 
-                  <div className="row g-3">
-                    <div className="col-12 col-md-6">
-                      <div className="card shadow-sm h-100">
-                        <div className="card-body">
-                          <h6 className="mb-3">Contact</h6>
-                          <div className="small mb-1">
-                            <i className="bi bi-envelope me-2" />
-                            {selected?.email || "—"}
-                          </div>
-                          <div className="small mb-1">
-                            <i className="bi bi-telephone me-2" />
-                            {selected?.phone || "—"}
-                          </div>
-                          <div className="small">
-                            <i className="bi bi-calendar me-2" />
-                            Joined:{" "}
-                            {selected?.createdAt
-                              ? new Date(selected.createdAt).toLocaleString()
+                  <div className="col-12 col-md-6">
+                    <div className="card shadow-sm h-100">
+                      <div className="card-body">
+                        <h6 className="mb-3">Quick Stats</h6>
+                        <div className="d-flex justify-content-between small mb-2">
+                          <span>Total Orders</span>
+                          <strong>{ordersCount(selected)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between small mb-2">
+                          <span>Lifetime Value</span>
+                          <strong>{fmt(lifetimeValue(selected))}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between small">
+                          <span>Last Order</span>
+                          <strong>
+                            {selected?.lastOrderDate
+                              ? new Date(
+                                  selected.lastOrderDate
+                                ).toLocaleString()
+                              : orders?.[0]?.createdAt
+                              ? new Date(orders[0].createdAt).toLocaleString()
                               : "—"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="col-12 col-md-6">
-                      <div className="card shadow-sm h-100">
-                        <div className="card-body">
-                          <h6 className="mb-3">Quick Stats</h6>
-                          <div className="d-flex justify-content-between small mb-2">
-                            <span>Total Orders</span>
-                            <strong>{ordersCount(selected)}</strong>
-                          </div>
-                          <div className="d-flex justify-content-between small mb-2">
-                            <span>Lifetime Value</span>
-                            <strong>{fmt(lifetimeValue(selected))}</strong>
-                          </div>
-                          <div className="d-flex justify-content-between small">
-                            <span>Last Order</span>
-                            <strong>
-                              {selected?.lastOrderDate
-                                ? new Date(
-                                    selected.lastOrderDate
-                                  ).toLocaleString()
-                                : orders?.[0]?.createdAt
-                                ? new Date(orders[0].createdAt).toLocaleString()
-                                : "—"}
-                            </strong>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Admin Note */}
-                    <div className="col-12">
-                      <div className="card shadow-sm">
-                        <div className="card-body">
-                          <div className="d-flex align-items-center justify-content-between mb-2">
-                            <h6 className="mb-0">Admin Notes</h6>
-                            <div className="d-flex gap-2">
-                              <button
-                                className={`btn btn-sm ${
-                                  selected.isBlocked
-                                    ? "btn-success"
-                                    : "btn-warning"
-                                }`}
-                                onClick={() => toggleBlock(selected)}
-                              >
-                                {selected.isBlocked ? "Unblock" : "Block"}
-                              </button>
-                              <button
-                                className="btn btn-sm btn-pink"
-                                onClick={saveNote}
-                                disabled={noteSaving}
-                              >
-                                {noteSaving ? "Saving…" : "Save Note"}
-                              </button>
-                            </div>
-                          </div>
-                          <textarea
-                            className="form-control"
-                            rows={3}
-                            value={selected.note || ""}
-                            onChange={(e) =>
-                              setSelected((s) => ({
-                                ...s,
-                                note: e.target.value,
-                              }))
-                            }
-                            placeholder="Add private notes visible only to admins…"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Recent Orders */}
-                    <div className="col-12">
-                      <div className="card shadow-sm">
-                        <div className="card-header bg-white d-flex align-items-center justify-content-between">
-                          <h6 className="mb-0">Recent Orders</h6>
-                          <Link
-                            to="/admin/orders"
-                            className="small text-decoration-none"
-                            onClick={closeDetails}
-                          >
-                            View all
-                          </Link>
-                        </div>
-                        <div className="card-body p-0">
-                          {ordersLoading ? (
-                            <div className="p-4 text-center">
-                              <div
-                                className="spinner-border"
-                                role="status"
-                                aria-hidden="true"
-                              ></div>
-                            </div>
-                          ) : orders.length === 0 ? (
-                            <div className="p-4 text-center text-muted">
-                              No recent orders
-                            </div>
-                          ) : (
-                            <div className="table-responsive">
-                              <table className="table table-sm align-middle mb-0">
-                                <thead className="table-light">
-                                  <tr>
-                                    <th>Order</th>
-                                    <th>Total</th>
-                                    <th>Status</th>
-                                    <th>Date</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {orders.map((o) => (
-                                    <tr key={o._id}>
-                                      <td className="fw-semibold">
-                                        #{String(o._id).slice(-6)}
-                                      </td>
-                                      <td>
-                                        {fmt(o.total || o.totalAmount || 0)}
-                                      </td>
-                                      <td>
-                                        <span className="badge bg-secondary">
-                                          {o.status || "—"}
-                                        </span>
-                                      </td>
-                                      <td>
-                                        {o.createdAt
-                                          ? new Date(
-                                              o.createdAt
-                                            ).toLocaleString()
-                                          : "—"}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
+                          </strong>
                         </div>
                       </div>
                     </div>
                   </div>
-                </>
-              )}
+
+                  {/* Admin Note */}
+                  <div className="col-12">
+                    <div className="card shadow-sm">
+                      <div className="card-body">
+                        <div className="d-flex align-items-center justify-content-between mb-2">
+                          <h6 className="mb-0">Admin Notes</h6>
+                          <div className="d-flex gap-2">
+                            <button
+                              className={`btn btn-sm ${
+                                selected.isBlocked
+                                  ? "btn-success"
+                                  : "btn-warning"
+                              }`}
+                              onClick={() => toggleBlock(selected)}
+                            >
+                              {selected.isBlocked ? "Unblock" : "Block"}
+                            </button>
+                            <button
+                              className="btn btn-sm btn-pink"
+                              onClick={saveNote}
+                              disabled={noteSaving}
+                            >
+                              {noteSaving ? "Saving…" : "Save Note"}
+                            </button>
+                          </div>
+                        </div>
+                        <textarea
+                          className="form-control"
+                          rows={3}
+                          value={selected.note || ""}
+                          onChange={(e) =>
+                            setSelected((s) => ({
+                              ...s,
+                              note: e.target.value,
+                            }))
+                          }
+                          placeholder="Add private notes visible only to admins…"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recent Orders */}
+                  <div className="col-12">
+                    <div className="card shadow-sm">
+                      <div className="card-header bg-white d-flex align-items-center justify-content-between">
+                        <h6 className="mb-0">Recent Orders</h6>
+                        <Link
+                          to="/admin/orders"
+                          className="small text-decoration-none"
+                          onClick={closeDetails}
+                        >
+                          View all
+                        </Link>
+                      </div>
+                      <div className="card-body p-0">
+                        {ordersLoading ? (
+                          <div className="p-4 text-center">
+                            <div
+                              className="spinner-border"
+                              role="status"
+                              aria-hidden="true"
+                            ></div>
+                          </div>
+                        ) : orders.length === 0 ? (
+                          <div className="p-4 text-center text-muted">
+                            No recent orders
+                          </div>
+                        ) : (
+                          <div className="table-responsive">
+                            <table className="table table-sm align-middle mb-0">
+                              <thead className="table-light">
+                                <tr>
+                                  <th>Order</th>
+                                  <th>Total</th>
+                                  <th>Status</th>
+                                  <th>Date</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {orders.map((o) => (
+                                  <tr key={o._id}>
+                                    <td className="fw-semibold">
+                                      #{String(o._id).slice(-6)}
+                                    </td>
+                                    <td>
+                                      {fmt(o.total || o.totalAmount || 0)}
+                                    </td>
+                                    <td>
+                                      <span className="badge bg-secondary">
+                                        {o.status || "—"}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      {o.createdAt
+                                        ? new Date(o.createdAt).toLocaleString()
+                                        : "—"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 };

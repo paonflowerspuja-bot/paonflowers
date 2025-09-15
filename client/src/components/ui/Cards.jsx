@@ -1,131 +1,152 @@
-// src/components/ui/Cards.jsx
+// client/src/components/ui/Cards.jsx
 import React from "react";
-import { Card as BsCard, Button } from "react-bootstrap";
-import { Link } from "react-router-dom";
-import { useCart } from "../../context/CartContext";
+
+// Optional CartContext (won't crash if missing)
+let useCart;
+try {
+  ({ useCart } = await import("../../context/CartContext.jsx"));
+} catch {
+  /* CartContext not available in this route – that's fine */
+}
 
 const CURRENCY = import.meta.env.VITE_CURRENCY || "AED";
-const LOCALE = CURRENCY === "AED" ? "en-AE" : "en-IN";
+const LOCALE =
+  CURRENCY === "AED" ? "en-AE" : import.meta.env.VITE_LOCALE || "en-AE";
+
 const fmt = (n) =>
   new Intl.NumberFormat(LOCALE, {
     style: "currency",
     currency: CURRENCY,
-    maximumFractionDigits: 2,
   }).format(Number(n) || 0);
 
-// Safe image helper (supports http(s), data:, /uploads, /assets)
-const IMG = (p) => {
-  if (!p) return "/assets/placeholder.jpg";
-  if (/^(https?:|data:)/i.test(p)) return p;
-  return p.startsWith("/") ? p : `/uploads/${p}`;
+// Safe image getter
+const firstImg = (p) =>
+  p?.images?.[0]?.url || p?.image || "/assets/placeholder.png";
+
+// Compute price with percent discount
+const computePrice = (p) => {
+  const price = Number(p?.price) || 0;
+  const discount = Math.max(0, Number(p?.discount) || 0);
+  const final = discount > 0 ? price - (price * discount) / 100 : price;
+  return {
+    original: price,
+    final: Math.max(0, Number(final.toFixed(2))),
+    discount,
+  };
 };
 
-const Cards = ({
-  product,
-  id,
-  image,
-  title,
-  price,
-  slug,
-  stock,
-  isFeatured,
-}) => {
-  // Works with both addToCart(product, qty) and reducer dispatch
-  const { addToCart, dispatch } = useCart?.() || {};
+/**
+ * Props:
+ * - products: array (unchanged)
+ * - onClick(product): optional, fires when image is clicked (unchanged)
+ * - showAddToCart: boolean (optional, default false) -> renders "Add to Cart" button
+ * - onAddToCart(product): optional; if not provided, uses CartContext.addToCart if available
+ * - addButtonText: string (optional, default "Add to Cart")
+ * - buttonClassName: string (optional) extra classes for the add button
+ * - quantity: number (optional, default 1)
+ */
+export default function Cards({
+  products = [],
+  onClick,
+  showAddToCart = false,
+  onAddToCart,
+  addButtonText = "Add to Cart",
+  buttonClassName = "btn btn-dark",
+  quantity = 1,
+}) {
+  // Cart context (if available)
+  const cartApi = useCart ? useCart() : null;
 
-  // Normalize input: prefer product object, else build one from props
-  const p = product || {
-    _id: id,
-    id,
-    name: title,
-    slug,
-    price,
-    images: [{ url: image }],
-    stock,
-    isFeatured,
-  };
-
-  const firstImage = p?.images?.[0]?.url || p?.images?.[0] || image;
-  const inStock = (typeof p?.stock === "number" ? p.stock : 100) > 0;
-
-  const handleAddToCart = () => {
-    const payload = {
-      id: p?._id || p?.id,
-      _id: p?._id || p?.id,
-      slug: p?.slug,
-      name: p?.name || title,
-      price: p?.price ?? price ?? 0,
-      image: IMG(firstImage),
-      quantity: 1,
+  const handleAdd = (e, product, price) => {
+    e?.stopPropagation?.();
+    const item = {
+      _id: product._id,
+      name: product.name,
+      price, // use the computed final price for cart line item
+      image: firstImg(product),
+      qty: quantity > 0 ? quantity : 1,
     };
 
-    if (typeof addToCart === "function") {
-      addToCart(payload, 1);
-    } else if (dispatch) {
-      dispatch({ type: "ADD_TO_CART", payload });
-    } else {
-      alert("Added to cart");
+    if (typeof onAddToCart === "function") {
+      onAddToCart(item, product);
+      return;
     }
+    if (cartApi?.addToCart) {
+      cartApi.addToCart(item);
+    }
+    // If neither provided, silently no-op (prevents breaking other pages)
   };
 
   return (
-    <BsCard className="h-100 shadow-sm border-0">
-      <div className="position-relative">
-        <BsCard.Img
-          variant="top"
-          src={IMG(firstImage)}
-          alt={p?.name || title || "Product image"}
-          className="w-100"
-          style={{ height: 240, objectFit: "cover" }}
-          loading="lazy"
-        />
-        {p?.isFeatured && (
-          <span className="badge bg-danger position-absolute top-0 start-0 m-2">
-            Featured
-          </span>
-        )}
-        {!inStock && (
-          <span className="badge bg-secondary position-absolute top-0 end-0 m-2">
-            Out of stock
-          </span>
-        )}
-      </div>
+    <div className="row g-3">
+      {products.map((p) => {
+        const img = firstImg(p);
+        const { original, final, discount } = computePrice(p);
+        const hasDiscount = discount > 0;
 
-      <BsCard.Body className="d-flex flex-column">
-        <BsCard.Title className="mb-1 text-truncate">
-          {p?.name || title}
-        </BsCard.Title>
-        <div className="text-pink fw-semibold mb-2">
-          {fmt(p?.price ?? price)}
-        </div>
+        return (
+          <div className="col-6 col-md-4 col-lg-3" key={p._id || p.slug || img}>
+            <div className="card h-100 shadow-sm">
+              <div className="position-relative" onClick={() => onClick?.(p)}>
+                <img
+                  src={img}
+                  alt={p.name}
+                  className="card-img-top"
+                  style={{ objectFit: "cover", aspectRatio: "1/1" }}
+                  loading="lazy"
+                />
+                {hasDiscount && (
+                  <span className="badge bg-danger position-absolute top-0 start-0 m-2">
+                    -{discount}%
+                  </span>
+                )}
+                {p.isFeatured && (
+                  <span className="badge bg-success position-absolute top-0 end-0 m-2">
+                    Featured
+                  </span>
+                )}
+              </div>
 
-        {p?.description && (
-          <BsCard.Text className="text-muted" style={{ fontSize: ".95rem" }}>
-            {(p.description || "").slice(0, 90)}
-            {(p.description || "").length > 90 ? "…" : ""}
-          </BsCard.Text>
-        )}
+              <div className="card-body d-flex flex-column">
+                <div className="fw-semibold mb-1" style={{ minHeight: 40 }}>
+                  {p.name}
+                </div>
 
-        <div className="mt-auto d-grid gap-2">
-          <Button
-            as={Link}
-            to={`/product/${p?.slug || p?._id || id}`}
-            variant="outline-secondary"
-          >
-            View Details
-          </Button>
-          <Button
-            variant="dark"
-            className="btn-pink"
-            onClick={handleAddToCart}
-            disabled={!inStock}
-          >
-            {inStock ? "Add to Cart" : "Unavailable in Dubai"}
-          </Button>
-        </div>
-      </BsCard.Body>
-    </BsCard>
+                {/* price */}
+                <div className="mt-auto mb-3">
+                  {hasDiscount ? (
+                    <div className="d-flex align-items-baseline gap-2">
+                      <span className="text-muted text-decoration-line-through">
+                        {fmt(original)}
+                      </span>
+                      <span className="fw-bold">{fmt(final)}</span>
+                    </div>
+                  ) : (
+                    <div className="fw-bold">{fmt(original)}</div>
+                  )}
+                </div>
+
+                {/* CTA: only render when requested (no hidden/ghost button) */}
+                {showAddToCart && (
+                  <div className="d-grid">
+                    <button
+                      type="button"
+                      className={buttonClassName}
+                      onClick={(e) => handleAdd(e, p, hasDiscount ? final : original)}
+                    >
+                      {addButtonText}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {!products?.length && (
+        <div className="col-12 text-center text-muted py-4">No products found</div>
+      )}
+    </div>
   );
-};
-
-export default Cards;
+}
