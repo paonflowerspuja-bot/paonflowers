@@ -10,18 +10,27 @@ import {
   deleteProduct,
 } from "../controllers/productController.js";
 
-// ✅ use the new memory-based multer + collector (Cloudinary pipeline)
+// ✅ memory-based multer + collector (Cloudinary pipeline)
 import { productImages, collectAllFiles } from "../middleware/multer.js";
 
 const router = Router();
 
-// Public
+// ---------- Public ----------
 router.get("/", listProducts);
-router.get("/:slug", getProduct);
 
-// Admin
+// CHANGED: support slug OR ObjectId (controller reads either key)
+router.get("/:slugOrId", getProduct);
+
+// ---------- Admin ----------
 router.post("/", auth, isAdmin, productImages, collectAllFiles, createProduct);
-router.patch("/:id", auth, isAdmin, productImages, collectAllFiles, updateProduct);
+router.patch(
+  "/:id",
+  auth,
+  isAdmin,
+  productImages,
+  collectAllFiles,
+  updateProduct
+);
 router.delete("/:id", auth, isAdmin, deleteProduct);
 
 export default router;

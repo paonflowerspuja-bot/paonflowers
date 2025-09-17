@@ -37,14 +37,7 @@ await connectDB();
 if (process.env.BUILD_INDEXES === "true") {
   try {
     const { default: Product } = await import("./models/Product.js");
-    // Add more models here if you want:
-    // const { default: Offer } = await import("./models/offers.js");
-
-    await Promise.all([
-      Product?.syncIndexes?.(),
-      // Offer?.syncIndexes?.(),
-    ]);
-
+    await Promise.all([Product?.syncIndexes?.()]);
     console.log("🔧 Indexes synced");
   } catch (e) {
     console.error("Index sync error:", e?.message || e);
@@ -52,6 +45,7 @@ if (process.env.BUILD_INDEXES === "true") {
 }
 
 /* ---------- OPTIONAL: seed 1 sample product when empty ---------- */
+// CHANGED: avoid enum violations (use valid values or omit)
 if (process.env.SEED_ON_BOOT === "true") {
   try {
     const { default: Product } = await import("./models/Product.js");
@@ -64,8 +58,11 @@ if (process.env.SEED_ON_BOOT === "true") {
         price: 99,
         stock: 10,
         images: [],
-        category: "Test",
-        occasion: "Any",
+        // valid enum examples (or omit any of these to keep null)
+        flowerType: "Rose",
+        flowerColor: "Red",
+        occasion: "Birthday",
+        collection: "Summer Collection",
         tags: ["sample"],
         isFeatured: false,
       });
@@ -96,7 +93,6 @@ const allowList = (process.env.CORS_ORIGIN || "http://localhost:5173")
   .filter(Boolean);
 
 app.use((req, res, next) => {
-  // ensure caches/proxies vary by Origin so the right CORS header is served
   res.setHeader("Vary", "Origin");
   next();
 });
@@ -104,10 +100,8 @@ app.use((req, res, next) => {
 app.use(
   cors({
     origin(origin, cb) {
-      // allow server-to-server tools (no Origin header)
       if (!origin) return cb(null, true);
       if (allowList.includes(origin)) return cb(null, true);
-      // dev convenience: allow 127.0.0.1 variant when NODE_ENV not set
       if (
         !process.env.NODE_ENV &&
         /^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin)
@@ -121,8 +115,6 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-
-// Make preflight succeed everywhere
 app.options("*", cors());
 
 // ------------------------
@@ -136,16 +128,13 @@ app.use(
 );
 
 if (!isProd) app.use(morgan("dev"));
-
 app.use(compression());
 app.use(cookieParser());
-
-// Body parsers
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // ------------------------
-// Static: local uploads (if you use them alongside Cloudinary)
+// Static: local uploads
 // ------------------------
 const allowOrigin = allowList[0] || "*";
 app.use(
@@ -187,7 +176,7 @@ app.use("/api/drivers", driverRoutes);
 app.use("/api/users", userRoutes);
 
 // ------------------------
-// Optional aliases (client sometimes calls without /api)
+// Optional aliases
 // ------------------------
 app.use("/auth", authRoutes);
 app.use("/products", productRoutes);

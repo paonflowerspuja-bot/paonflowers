@@ -4,14 +4,10 @@ import CategoryGridPage from "../../components/common/CategoryGridPage";
 export default function GraduationDay() {
   return (
     <CategoryGridPage
-      title="Graduation Day Flowers"
-      description="Celebrate their milestone with fresh, uplifting blooms—delivered across Dubai."
-      heroImg="/images/graduation-hero.jpg"
-      category="Graduation Day"
-      altFilters={[
-        { key: "category", value: "Graduation" },
-        { key: "occasion", value: "Graduation Day" },
-      ]}
+      title="Graduation Day"
+      description="Celebrate new beginnings with fresh florals."
+      heroImg="/images/backdrop.jpg"
+      query={{ occasion: "Graduation Day" }}
     />
   );
 }

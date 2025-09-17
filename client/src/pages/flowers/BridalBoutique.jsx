@@ -5,13 +5,9 @@ export default function BridalBoutique() {
   return (
     <CategoryGridPage
       title="Bridal Boutique"
-      description="Bridal bouquets, boutonnières, and luxe arrangements for your big day."
-      heroImg="/images/bridalboutique-hero.jpg"
-      category="Bridal Boutique"
-      altFilters={[
-        { key: "category", value: "Bridal" },
-        { key: "occasion", value: "Bridal Boutique" },
-      ]}
+      description="Refined florals for wedding elegance."
+      heroImg="/images/backdrop.jpg"
+      query={{ occasion: "Bridal Boutique" }}
     />
   );
 }

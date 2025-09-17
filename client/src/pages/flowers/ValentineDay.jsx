@@ -1,18 +1,13 @@
 import React from "react";
 import CategoryGridPage from "../../components/common/CategoryGridPage";
 
-export default function Valentine() {
+export default function ValentineDay() {
   return (
     <CategoryGridPage
-      title="Valentine's Day Flowers"
-      description="Romantic bouquets and luxe boxes to say it from the heart. Same-day Dubai."
-      heroImg="/images/valentineday-hero.jpg"
-      category="Valentine Day"
-      altFilters={[
-        { key: "category", value: "Valentine" },
-        { key: "occasion", value: "Valentine Day" },
-        { key: "occasion", value: "Valentine's Day" },
-      ]}
+      title="Valentine Day"
+      description="Say it with flowers—bold, red, and romantic."
+      heroImg="/images/backdrop.jpg"
+      query={{ occasion: "Valentine Day" }}
     />
   );
 }

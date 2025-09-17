@@ -28,6 +28,9 @@ function buildFormData(obj) {
   return fd;
 }
 
+// unify server response → product object
+const asProduct = (data) => data?.product ?? data?.item ?? data;
+
 const emptyForm = {
   name: "",
   description: "",
@@ -43,8 +46,8 @@ const emptyForm = {
   isFeatured: false,
 
   // offers
-  discount: "", // number (optional)
-  offerId: "", // optional
+  discount: "",
+  offerId: "",
 
   tags: "",
   image: null, // File
@@ -196,13 +199,18 @@ export default function ManageProducts() {
         const { data } = await api.patch(`/api/products/${editing._id}`, fd, {
           headers: { "Content-Type": "multipart/form-data" },
         });
-        // merge into list
-        setItems((prev) => prev.map((x) => (x._id === data._id ? data : x)));
+        const updated = asProduct(data);
+        if (!updated?._id) throw new Error("Update failed: invalid response");
+        setItems((prev) =>
+          prev.map((x) => (x._id === updated._id ? updated : x))
+        );
       } else {
         const { data } = await api.post(`/api/products`, fd, {
           headers: { "Content-Type": "multipart/form-data" },
         });
-        setItems((prev) => [data, ...prev]);
+        const created = asProduct(data);
+        if (!created?._id) throw new Error("Create failed: invalid response");
+        setItems((prev) => [created, ...prev]);
         setTotal((t) => t + 1);
       }
 
@@ -284,13 +292,13 @@ export default function ManageProducts() {
                       p?.image ||
                       "/assets/placeholder.png";
                     return (
-                      <tr key={p._id}>
+                      <tr key={p?._id || p?.slug || `row-${idx}`}>
                         <td>{(page - 1) * limit + idx + 1}</td>
                         <td>
                           <div className="d-flex align-items-center">
                             <img
                               src={thumb}
-                              alt={p.name}
+                              alt={p?.name || "Product image"}
                               style={{
                                 width: 44,
                                 height: 44,
@@ -300,25 +308,29 @@ export default function ManageProducts() {
                               }}
                             />
                             <div>
-                              <div className="fw-semibold">{p.name}</div>
-                              <div className="small text-muted">{p.slug}</div>
+                              <div className="fw-semibold">
+                                {p?.name || "—"}
+                              </div>
+                              <div className="small text-muted">
+                                {p?.slug || ""}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td>{p.flowerType || "—"}</td>
-                        <td>{p.flowerColor || "—"}</td>
-                        <td>{p.occasion || "—"}</td>
-                        <td>{p.collection || "—"}</td>
-                        <td className="text-end">{fmt(p.price)}</td>
+                        <td>{p?.flowerType || "—"}</td>
+                        <td>{p?.flowerColor || "—"}</td>
+                        <td>{p?.occasion || "—"}</td>
+                        <td>{p?.collection || "—"}</td>
+                        <td className="text-end">{fmt(p?.price)}</td>
                         <td className="text-center">
-                          {p.isFeatured ? (
+                          {p?.isFeatured ? (
                             <span className="badge bg-success">Yes</span>
                           ) : (
                             <span className="badge bg-secondary">No</span>
                           )}
                         </td>
                         <td className="text-center">
-                          {p.discount ? `${p.discount}` : "—"}
+                          {p?.discount ? `${p.discount}` : "—"}
                         </td>
                         <td>
                           <div className="btn-group btn-group-sm">
@@ -331,6 +343,7 @@ export default function ManageProducts() {
                             <button
                               className="btn btn-outline-danger"
                               onClick={() => deleteProduct(p._id)}
+                              disabled={!p?._id}
                             >
                               Delete
                             </button>
@@ -340,7 +353,7 @@ export default function ManageProducts() {
                     );
                   })}
                   {!items.length && (
-                    <tr>
+                    <tr key="no-items">
                       <td colSpan={10} className="text-center p-4 text-muted">
                         No products found
                       </td>

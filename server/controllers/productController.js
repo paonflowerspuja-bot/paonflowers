@@ -1,379 +1,487 @@
 // server/controllers/productController.js
-import { z } from "zod";
-import mongoose from "mongoose";
+import slugify from "slugify";
 import Product, {
   FLOWER_TYPES,
   FLOWER_COLORS,
   OCCASIONS,
   COLLECTIONS,
 } from "../models/Product.js";
-import slugify from "slugify";
-import { uploadBuffer, deleteByPublicId } from "../utils/cloudinary.js";
 
 /* -------------------- helpers -------------------- */
-// Ensure unique slug by appending -2, -3, ... if needed
-async function ensureUniqueSlug(baseSlug, excludeId = null) {
-  const MAX = 120;
-  let base = String(baseSlug || "").slice(0, MAX);
-  if (!base) base = Math.random().toString(36).slice(2, 10); // fallback
-  let candidate = base;
-  let n = 2;
-  const exists = async (slug) => {
-    const q = excludeId ? { slug, _id: { $ne: excludeId } } : { slug };
-    return !!(await Product.exists(q));
-  };
-  while (await exists(candidate)) {
-    const suffix = `-${n++}`;
-    const keep = Math.max(0, MAX - suffix.length);
-    candidate = base.slice(0, keep) + suffix;
-  }
-  return candidate;
-}
 
-const arrayFromMaybeCSV = (v) =>
-  Array.isArray(v)
-    ? v
-    : typeof v === "string"
-    ? v
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : v == null
-    ? []
-    : [v];
-
-const normalizeEnum = (val, allowed) => {
-  if (!val) return null;
-  const s = String(val).trim();
-  if (!s) return null;
-
-  if (allowed.includes(s)) return s;
-
-  const lower = s.toLowerCase();
-  const hit = allowed.find((a) => a.toLowerCase() === lower);
-  if (hit) return hit;
-
-  const unslug = s.replace(/-/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
-  const byWords = allowed.find(
-    (a) => a.toLowerCase().replace(/'/g, "").replace(/\s+/g, " ") === unslug
-  );
-  return byWords || null;
+const toArray = (v) => {
+  if (v == null) return [];
+  if (Array.isArray(v))
+    return v
+      .map(String)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  const s = String(v).trim();
+  if (!s) return [];
+  return s
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
 };
 
-const cleanValues = (arr) =>
-  (arr || [])
-    .filter((v) => typeof v === "string")
-    .map((v) => v.trim())
-    .filter(
-      (v) => v && v.toLowerCase() !== "null" && v.toLowerCase() !== "undefined"
-    );
+const cap = (s) => String(s || "").trim();
 
-function toClientProduct(doc) {
-  const p = doc.toObject ? doc.toObject() : { ...doc };
-  const price = Number(p.price) || 0;
-  const discountPercent = Math.max(0, Number(p.discount) || 0);
-  const priceFinal =
-    discountPercent > 0
-      ? Math.max(0, price - (price * discountPercent) / 100)
-      : price;
-  p.discountPercent = discountPercent;
-  p.priceFinal = Number(priceFinal.toFixed(2));
-  return p;
+const parseNum = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+const parseBool = (v) => {
+  if (v === true || v === false) return v;
+  const s = String(v ?? "").toLowerCase();
+  if (["1", "true", "yes", "y"].includes(s)) return true;
+  if (["0", "false", "no", "n"].includes(s)) return false;
+  return undefined;
+};
+
+const isObjectId = (s) => /^[0-9a-fA-F]{24}$/.test(String(s));
+
+const inCI = (vals) =>
+  vals.length
+    ? { $in: vals.map((v) => new RegExp(`^${escapeRegex(v)}$`, "i")) }
+    : undefined;
+
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/* -------------------- schema -------------------- */
+function makeCanonMap(list) {
+  const m = new Map();
+  list.forEach((val) => m.set(val.toLowerCase(), val));
+  return m;
+}
 
-const createSchema = z.object({
-  name: z.string().min(2),
-  slug: z.string().optional(),
-  description: z.string().optional().default(""),
-  price: z.coerce.number().positive(),
-  stock: z.coerce.number().int().nonnegative().optional().default(100),
+const CANON = {
+  flowerType: makeCanonMap(FLOWER_TYPES),
+  flowerColor: makeCanonMap(FLOWER_COLORS),
+  occasion: makeCanonMap(OCCASIONS),
+  collection: makeCanonMap(COLLECTIONS),
+};
 
-  flowerType: z.string().optional().nullable(),
-  flowerColor: z.string().optional().nullable(),
-  occasion: z.string().optional().nullable(),
-  collection: z.string().optional().nullable(),
+// normalize common aliases / spellings
+const ALIASES = new Map([
+  // occasions
+  ["valentineday", "Valentine Day"],
+  ["graduationday", "Graduation Day"],
+  ["newbaby", "New Baby"],
+  ["mothersday", "Mother's Day"],
+  ["bridalboutique", "Bridal Boutique"],
 
-  isFeatured: z
-    .union([z.string(), z.boolean()])
-    .optional()
-    .transform((v) =>
-      v === true || v === "true" || v === 1 || v === "1" ? true : false
-    ),
+  // collections
+  ["summer", "Summer Collection"],
+  ["summercollection", "Summer Collection"],
+  ["teddybear", "Teddy Bear"],
+  ["teddy", "Teddy Bear"],
+  ["balloon", "Balloons"],
+  ["balloons", "Balloons"],
 
-  discount: z.coerce.number().optional().default(0),
-  offerId: z.string().optional().nullable(),
+  // flower types (spellings)
+  ["hydrangea", "Hydrangeia"], // your enum uses Hydrangeia
+  ["lily", "Lilly"], // your enum uses Lilly
+  ["limonium", "Lemonium"], // common alt spelling
+]);
 
-  tags: z
-    .union([z.string(), z.array(z.string())])
-    .optional()
-    .transform((v) => (typeof v === "string" ? arrayFromMaybeCSV(v) : v || [])),
-});
+function canonOne(field, val) {
+  if (!val) return null;
+  const raw = String(val).trim();
+  if (!raw) return null;
 
-/* -------------------- controllers -------------------- */
+  const key = raw.toLowerCase().replace(/\s+/g, "").replace(/['’]/g, "");
+  const aliasHit = ALIASES.get(key);
+  const candidate = aliasHit || raw;
 
+  const map = CANON[field];
+  const byKey = candidate.toLowerCase();
+  const canon =
+    map.get(byKey) ||
+    map.get(byKey.replace(/\s+/g, " ")) ||
+    map.get(byKey.replace(/['’]/g, ""));
+
+  return canon || null;
+}
+
+function pickCanon(field, input) {
+  const arr = toArray(input);
+  for (const v of arr) {
+    const c = canonOne(field, v);
+    if (c) return c;
+  }
+  return null;
+}
+
+function listCanon(field, input) {
+  const arr = toArray(input);
+  const out = [];
+  for (const v of arr) {
+    const c = canonOne(field, v);
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+}
+
+async function ensureUniqueSlug(base, excludeId) {
+  let slug = base;
+  let i = 1;
+  // eslint-disable-next-line no-constant-condition
+  while (
+    await Product.findOne({
+      slug,
+      ...(excludeId ? { _id: { $ne: excludeId } } : {}),
+    })
+  ) {
+    slug = `${base}-${i++}`;
+  }
+  return slug;
+}
+
+function parseTagsFlexible(v) {
+  if (Array.isArray(v))
+    return v
+      .map(String)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  if (v == null) return [];
+  const s = String(v).trim();
+  if (!s) return [];
+  // JSON array string?
+  if (
+    (s.startsWith("[") && s.endsWith("]")) ||
+    (s.startsWith('["') && s.endsWith('"]'))
+  ) {
+    try {
+      const arr = JSON.parse(s);
+      return Array.isArray(arr)
+        ? arr
+            .map(String)
+            .map((x) => x.trim())
+            .filter(Boolean)
+        : [];
+    } catch {
+      // fall through to CSV
+    }
+  }
+  return toArray(s);
+}
+
+/* ---------- IMAGES: collect from various middlewares ---------- */
+function normalizeFileObj(f) {
+  if (!f) return null;
+  const url =
+    f.url ||
+    f.secure_url ||
+    f.cloudinaryUrl ||
+    f.location ||
+    f.path || // local uploads (served from /uploads)
+    null;
+  if (!url) return null;
+  const publicId = f.publicId || f.public_id || undefined;
+  return { url, publicId };
+}
+
+function gatherImagesFromReq(req, body) {
+  const out = [];
+
+  // 1) our collector middlewares
+  const c1 =
+    req.filesCollected || req.collectedFiles || req.uploads || req.filesMeta;
+  if (Array.isArray(c1)) {
+    c1.forEach((f) => {
+      const n = normalizeFileObj(f);
+      if (n) out.push(n);
+    });
+  } else if (c1 && typeof c1 === "object") {
+    // shapes like { images: [...], files: [...] }
+    const pools = [c1.images, c1.files, c1.all];
+    pools.forEach((arr) => {
+      if (Array.isArray(arr)) {
+        arr.forEach((f) => {
+          const n = normalizeFileObj(f);
+          if (n) out.push(n);
+        });
+      }
+    });
+  }
+
+  // 2) plain multer
+  if (Array.isArray(req.files)) {
+    req.files.forEach((f) => {
+      const n = normalizeFileObj(f);
+      if (n) out.push(n);
+    });
+  }
+  if (req.file) {
+    const n = normalizeFileObj(req.file);
+    if (n) out.push(n);
+  }
+
+  // 3) body URLs (e.g., image/imageUrl/images[] sent as strings)
+  if (body?.image && typeof body.image === "string") {
+    out.push({ url: body.image });
+  }
+  if (Array.isArray(body?.images)) {
+    body.images.forEach((u) => {
+      if (typeof u === "string") out.push({ url: u });
+      else {
+        const n = normalizeFileObj(u);
+        if (n) out.push(n);
+      }
+    });
+  } else if (body?.images && typeof body.images === "string") {
+    toArray(body.images).forEach((u) => out.push({ url: u }));
+  }
+  if (body?.imageUrl) out.push({ url: String(body.imageUrl) });
+
+  // de-dupe by url
+  const seen = new Set();
+  const deduped = [];
+  for (const img of out) {
+    if (img.url && !seen.has(img.url)) {
+      seen.add(img.url);
+      deduped.push(img);
+    }
+  }
+  return deduped;
+}
+
+/* -------------------- CREATE -------------------- */
+export const createProduct = async (req, res, next) => {
+  try {
+    const b = req.body || {};
+
+    const name = cap(b.name);
+    if (!name) return res.status(400).json({ error: "Name is required" });
+
+    const price = parseNum(b.price);
+    if (price == null)
+      return res.status(400).json({ error: "Price is required" });
+
+    const stock = parseNum(b.stock ?? 100) ?? 100;
+
+    const occasion = pickCanon("occasion", b.occasion ?? b.occasions);
+    const flowerType = pickCanon("flowerType", b.flowerType ?? b.type);
+    const flowerColor = pickCanon(
+      "flowerColor",
+      b.flowerColor ?? b.color ?? b.colour
+    );
+    const collection = pickCanon("collection", b.collection ?? b.collections);
+
+    const tags = parseTagsFlexible(b.tags);
+    const isFeatured = parseBool(b.isFeatured ?? b.featured) ?? false;
+
+    // IMAGES
+    const images = gatherImagesFromReq(req, b);
+
+    const slugBase =
+      cap(b.slug) || slugify(name, { lower: true, strict: true });
+    const slug = await ensureUniqueSlug(slugBase);
+
+    const doc = await Product.create({
+      name,
+      slug,
+      description: cap(b.description || ""),
+      price,
+      stock,
+      images,
+      tags,
+      flowerType,
+      flowerColor,
+      occasion,
+      collection,
+      isFeatured,
+      discount: parseNum(b.discount) ?? 0,
+      offerId: b.offerId || undefined,
+    });
+
+    res.status(201).json({ ok: true, product: doc });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* --------------------- LIST --------------------- */
 export const listProducts = async (req, res, next) => {
   try {
     const {
       q,
-      category,
-      occasion,
-      type,
-      color,
-      collection,
-      featured,
-      offer,
-      min,
-      max,
       sort = "-createdAt",
       page = "1",
       limit = "12",
+
+      occasion,
+      occasions,
+      type,
+      flowerType,
+      color,
+      flowerColor,
+      colour,
+      collection,
+      collections,
+      category, // alias for collections
+      featured,
+      isFeatured,
+
+      min,
+      max,
     } = req.query;
 
     const filter = {};
-    if (q) filter.$text = { $search: q };
 
-    const addIn = (field, rawValues) => {
-      const cleaned = cleanValues(rawValues);
-      if (!cleaned.length) return;
-      (filter.$and ||= []).push({ [field]: { $in: cleaned } });
+    if (q) filter.$text = { $search: String(q) };
+
+    const occVals = listCanon("occasion", occasion ?? occasions);
+    if (occVals.length) filter.occasion = inCI(occVals);
+
+    const typeVals = listCanon("flowerType", flowerType ?? type);
+    if (typeVals.length) filter.flowerType = inCI(typeVals);
+
+    const colorVals = listCanon("flowerColor", flowerColor ?? colour ?? color);
+    if (colorVals.length) filter.flowerColor = inCI(colorVals);
+
+    const collInputs = toArray(collection ?? collections);
+    const cat = String(category || "").toLowerCase();
+    if (cat === "balloons") collInputs.push("Balloons");
+    if (cat === "teddybear" || cat === "teddy-bear")
+      collInputs.push("Teddy Bear");
+    if (cat === "summer" || cat === "summercollection")
+      collInputs.push("Summer Collection");
+    const collVals = listCanon("collection", collInputs);
+    if (collVals.length) filter.collection = inCI(collVals);
+
+    const feat = parseBool(isFeatured ?? featured);
+    if (feat !== undefined) filter.isFeatured = feat;
+
+    const minP = parseNum(min);
+    const maxP = parseNum(max);
+    if (minP != null || maxP != null) {
+      filter.price = {};
+      if (minP != null) filter.price.$gte = minP;
+      if (maxP != null) filter.price.$lte = maxP;
+    }
+
+    const p = Math.max(1, parseNum(page) ?? 1);
+    const lim = Math.max(1, Math.min(100, parseNum(limit) ?? 12));
+    const skip = (p - 1) * lim;
+
+    const sortMap = {
+      featured: "-isFeatured,-createdAt",
+      newest: "-createdAt",
+      priceasc: "price",
+      pricedesc: "-price",
     };
+    const sKey = String(sort).toLowerCase();
+    const s = sortMap[sKey] || sort;
 
-    if (type) {
-      const mapped = arrayFromMaybeCSV(type).map((v) =>
-        normalizeEnum(v, FLOWER_TYPES)
-      );
-      addIn("flowerType", mapped.filter(Boolean));
-    }
-    if (color) {
-      const mapped = arrayFromMaybeCSV(color).map((v) =>
-        normalizeEnum(v, FLOWER_COLORS)
-      );
-      addIn("flowerColor", mapped.filter(Boolean));
-    }
-    if (occasion) {
-      const mapped = arrayFromMaybeCSV(occasion).map((v) =>
-        normalizeEnum(v, OCCASIONS)
-      );
-      addIn("occasion", mapped.filter(Boolean));
-    }
-    if (collection) {
-      const mapped = arrayFromMaybeCSV(collection).map((v) =>
-        normalizeEnum(v, COLLECTIONS)
-      );
-      addIn("collection", mapped.filter(Boolean));
-    }
-
-    if (category) {
-      const c = String(category).trim();
-      const tryLists = [
-        { field: "flowerType", list: FLOWER_TYPES },
-        { field: "flowerColor", list: FLOWER_COLORS },
-        { field: "occasion", list: OCCASIONS },
-        { field: "collection", list: COLLECTIONS },
-      ];
-      for (const { field, list } of tryLists) {
-        const mapped = normalizeEnum(c, list);
-        if (mapped) {
-          addIn(field, [mapped]);
-          break;
-        }
-      }
-    }
-
-    if (featured === "true" || featured === "1") filter.isFeatured = true;
-
-    if (offer === "true" || offer === "1") {
-      filter.$or = [{ discount: { $gt: 0 } }, { offerId: { $exists: true } }];
-    }
-
-    if (min || max) {
-      filter.price = {
-        ...(min ? { $gte: Number(min) } : {}),
-        ...(max ? { $lte: Number(max) } : {}),
-      };
-    }
-
-    const skip = (Number(page) - 1) * Number(limit);
     const [items, total] = await Promise.all([
-      Product.find(filter)
-        .sort(String(sort).replace(",", " "))
-        .skip(skip)
-        .limit(Number(limit)),
+      Product.find(filter).sort(s).skip(skip).limit(lim).lean(),
       Product.countDocuments(filter),
     ]);
 
     res.json({
-      items: items.map((doc) => toClientProduct(doc)),
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total,
-        pages: Math.ceil(total / Number(limit)),
-      },
+      page: p,
+      limit: lim,
+      total,
+      pages: Math.ceil(total / lim),
+      items,
     });
-  } catch (e) {
-    next(e);
+  } catch (err) {
+    next(err);
   }
 };
 
+/* --------------- READ ONE (slug or id) --------------- */
 export const getProduct = async (req, res, next) => {
   try {
-    const bySlug = await Product.findOne({ slug: req.params.slug });
-    if (bySlug) return res.json(toClientProduct(bySlug));
-    const byId = await Product.findById(req.params.slug);
-    if (byId) return res.json(toClientProduct(byId));
-    res.status(404).json({ message: "Product not found" });
-  } catch (e) {
-    next(e);
+    const { slugOrId } = req.params; // route should use :slugOrId
+    const query = isObjectId(slugOrId) ? { _id: slugOrId } : { slug: slugOrId };
+    const doc = await Product.findOne(query).lean();
+    if (!doc) return res.status(404).json({ error: "Not found" });
+    res.json(doc);
+  } catch (err) {
+    next(err);
   }
 };
 
-export const createProduct = async (req, res, next) => {
-  try {
-    const parsed = createSchema.parse({
-      ...req.body,
-      tags:
-        typeof req.body.tags === "string"
-          ? (() => {
-              try {
-                const j = JSON.parse(req.body.tags);
-                return Array.isArray(j) ? j : arrayFromMaybeCSV(req.body.tags);
-              } catch {
-                return arrayFromMaybeCSV(req.body.tags);
-              }
-            })()
-          : req.body.tags,
-    });
-
-    const payload = {
-      ...parsed,
-      flowerType: normalizeEnum(parsed.flowerType, FLOWER_TYPES),
-      flowerColor: normalizeEnum(parsed.flowerColor, FLOWER_COLORS),
-      occasion: normalizeEnum(parsed.occasion, OCCASIONS),
-      collection: normalizeEnum(parsed.collection, COLLECTIONS),
-      offerId:
-        parsed.offerId && mongoose.Types.ObjectId.isValid(parsed.offerId)
-          ? new mongoose.Types.ObjectId(parsed.offerId)
-          : undefined,
-    };
-
-    const baseSlug = (
-      payload.slug || slugify(payload.name, { lower: true, strict: true })
-    ).slice(0, 120);
-    const slug = await ensureUniqueSlug(baseSlug);
-
-    // 🔼 Upload images to Cloudinary
-    const images = [];
-    const files = req._allFiles || [];
-    for (const f of files) {
-      const r = await uploadBuffer(f.buffer);
-      images.push({ url: r.secure_url, publicId: r.public_id });
-    }
-
-    const created = await Product.create({
-      ...payload,
-      slug,
-      images,
-    });
-
-    res.status(201).json(toClientProduct(created));
-  } catch (e) {
-    next(e);
-  }
-};
-
+/* --------------------- UPDATE --------------------- */
 export const updateProduct = async (req, res, next) => {
   try {
-    const id = req.params.id;
-    const existing = await Product.findById(id);
-    if (!existing)
-      return res.status(404).json({ message: "Product not found" });
+    const { id } = req.params; // route uses :id
+    if (!isObjectId(id)) return res.status(400).json({ error: "Invalid id" });
 
-    const tagsParsed =
-      typeof req.body.tags === "string"
-        ? (() => {
-            try {
-              const j = JSON.parse(req.body.tags);
-              return Array.isArray(j) ? j : arrayFromMaybeCSV(req.body.tags);
-            } catch {
-              return arrayFromMaybeCSV(req.body.tags);
-            }
-          })()
-        : req.body.tags;
+    const b = req.body || {};
+    const update = {};
 
-    const partialSchema = createSchema.partial();
-    const partial = partialSchema.parse({
-      ...req.body,
-      tags: tagsParsed,
-    });
+    if (b.name != null) update.name = cap(b.name);
+    if (b.description != null) update.description = cap(b.description);
+    if (b.price != null) update.price = parseNum(b.price);
+    if (b.stock != null) update.stock = parseNum(b.stock);
 
-    const update = { ...partial };
+    if (b.tags != null) update.tags = parseTagsFlexible(b.tags);
 
-    if ("flowerType" in partial)
-      update.flowerType = normalizeEnum(partial.flowerType, FLOWER_TYPES);
-    if ("flowerColor" in partial)
-      update.flowerColor = normalizeEnum(partial.flowerColor, FLOWER_COLORS);
-    if ("occasion" in partial)
-      update.occasion = normalizeEnum(partial.occasion, OCCASIONS);
-    if ("collection" in partial)
-      update.collection = normalizeEnum(partial.collection, COLLECTIONS);
-
-    if ("offerId" in partial) {
-      if (!partial.offerId) {
-        update.offerId = undefined;
-      } else if (mongoose.Types.ObjectId.isValid(partial.offerId)) {
-        update.offerId = new mongoose.Types.ObjectId(partial.offerId);
-      } else {
-        delete update.offerId;
-      }
-    }
-
-    if (partial.name) {
-      update.slug = slugify(partial.name, { lower: true, strict: true }).slice(
-        0,
-        120
+    // enums (single-string)
+    if (b.occasion != null || b.occasions != null)
+      update.occasion = pickCanon("occasion", b.occasion ?? b.occasions);
+    if (b.flowerType != null || b.type != null)
+      update.flowerType = pickCanon("flowerType", b.flowerType ?? b.type);
+    if (b.flowerColor != null || b.color != null || b.colour != null)
+      update.flowerColor = pickCanon(
+        "flowerColor",
+        b.flowerColor ?? b.color ?? b.colour
       );
+    if (b.collection != null || b.collections != null)
+      update.collection = pickCanon(
+        "collection",
+        b.collection ?? b.collections
+      );
+
+    if (b.isFeatured != null || b.featured != null)
+      update.isFeatured = parseBool(b.isFeatured ?? b.featured);
+    if (b.discount != null) update.discount = parseNum(b.discount);
+    if (b.offerId !== undefined) update.offerId = b.offerId || undefined;
+
+    // IMAGES: replace if any new uploads/urls provided
+    const newImgs = gatherImagesFromReq(req, b);
+    if (newImgs.length) update.images = newImgs;
+
+    // slug if provided or if name changed (ensure uniqueness)
+    if (b.slug || b.name) {
+      const base =
+        cap(b.slug) ||
+        (update.name
+          ? slugify(update.name, { lower: true, strict: true })
+          : "");
+      if (base) update.slug = await ensureUniqueSlug(base, id);
     }
 
-    // 🔼 Upload any new images to Cloudinary, prepend them
-    const files = req._allFiles || [];
-    let images = existing.images || [];
-    if (files.length) {
-      const uploaded = [];
-      for (const f of files) {
-        const r = await uploadBuffer(f.buffer);
-        uploaded.push({ url: r.secure_url, publicId: r.public_id });
-      }
-      images = [...uploaded, ...images];
-      update.images = images;
-    }
+    const updated = await Product.findByIdAndUpdate(id, update, {
+      new: true,
+      runValidators: true,
+    }).lean();
 
-    const updated = await Product.findByIdAndUpdate(id, update, { new: true });
-    res.json(toClientProduct(updated));
-  } catch (e) {
-    next(e);
+    if (!updated) return res.status(404).json({ error: "Not found" });
+    res.json({ ok: true, product: updated });
+  } catch (err) {
+    next(err);
   }
 };
 
+/* --------------------- DELETE --------------------- */
 export const deleteProduct = async (req, res, next) => {
   try {
-    const p = await Product.findById(req.params.id);
-    if (!p) return res.json({ ok: true });
-    // 🔽 best-effort delete assets in Cloudinary
-    if (Array.isArray(p.images)) {
-      for (const img of p.images) {
-        if (img?.publicId) {
-          try {
-            await deleteByPublicId(img.publicId);
-          } catch (_) {}
-        }
-      }
-    }
-    await p.deleteOne();
+    const { id } = req.params; // route uses :id
+    if (!isObjectId(id)) return res.status(400).json({ error: "Invalid id" });
+
+    const doc = await Product.findByIdAndDelete(id).lean();
+    if (!doc) return res.status(404).json({ error: "Not found" });
+
+    // TODO: If using Cloudinary, delete by doc.images[].publicId here.
+
     res.json({ ok: true });
-  } catch (e) {
-    next(e);
+  } catch (err) {
+    next(err);
   }
 };

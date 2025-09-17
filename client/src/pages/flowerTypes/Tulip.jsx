@@ -5,13 +5,9 @@ export default function Tulip() {
   return (
     <CategoryGridPage
       title="Tulips"
-      description="Clean silhouettes and rich colors—effortlessly chic."
-      heroImg="/assets/Types/Tulip/hero.jpg"
-      category="Tulip"
-      altFilters={[
-        { key: "type", value: "Tulip" },
-        { key: "category", value: "Tulips" }, // plural fallback
-      ]}
+      description="Fresh, cheerful tulips to lift the day."
+      heroImg="/images/backdrop.jpg"
+      query={{ type: "Tulip" }}
     />
   );
 }

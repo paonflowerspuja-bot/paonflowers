@@ -5,13 +5,9 @@ export default function Rose() {
   return (
     <CategoryGridPage
       title="Roses"
-      description="Timeless elegance—from classic reds to modern pastel palettes."
-      heroImg="/assets/Types/Rose/hero.jpg"
-      category="Rose"
-      altFilters={[
-        { key: "type", value: "Rose" },
-        { key: "category", value: "Roses" }, // if admin used plural
-      ]}
+      description="Timeless roses for every heartfelt message."
+      heroImg="/images/backdrop.jpg"
+      query={{ type: "Rose" }}
     />
   );
 }

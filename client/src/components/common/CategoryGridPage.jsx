@@ -1,169 +1,261 @@
-// src/components/pages/CategoryGridPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Container, Row, Col, Button, Spinner, Alert } from "react-bootstrap";
-import { Helmet } from "react-helmet-async";
-import Cards from "../ui/Cards";
+import api from "../../utils/api";
+import { useCart } from "../../context/CartContext";
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+const CURRENCY = import.meta.env.VITE_CURRENCY || "AED";
+const LOCALE = CURRENCY === "AED" ? "en-AE" : "en-IN";
+const fmt = (n) =>
+  new Intl.NumberFormat(LOCALE, {
+    style: "currency",
+    currency: CURRENCY,
+  }).format(Number(n) || 0);
 
-/**
- * Generic grid page used by Type/Color/Occasion/Collection routes.
- * Props:
- * - title: string (H1 + SEO)
- * - heroImg: string (background image path)
- * - description: string (optional line under title)
- * - category: string (primary value to try first; server will auto-map to the right field)
- * - altFilters: {key, value}[] fallbacks (e.g., [{ key: "occasion", value: "Birthday" }])
- * - gridId: string (optional anchor id to scroll to grid)
- */
-const CategoryGridPage = ({
+// Canonical sets (for back-compat when only `category` is provided)
+const COLORS = ["Red", "Pink", "White", "Yellow"];
+const TYPES = ["Hydrangeia", "Rose", "Lemonium", "Lilly", "Tulip", "Foliage"];
+const OCCASIONS = [
+  "Birthday",
+  "Valentine Day",
+  "Graduation Day",
+  "New Baby",
+  "Mother's Day",
+  "Bridal Boutique",
+  "Eid",
+];
+const COLLECTIONS = ["Summer Collection", "Balloons", "Teddy Bear"];
+
+/** Price helpers */
+function getDiscounted(price, discount) {
+  const p = Number(price) || 0;
+  const d = Number(discount) || 0;
+  if (d <= 0) return { final: p, has: false };
+  const final = Math.max(0, p - (p * d) / 100);
+  return { final, has: true };
+}
+
+export default function CategoryGridPage({
   title,
-  heroImg,
   description,
+  heroImg = "/images/backdrop.jpg",
+  query = {},
   category,
-  altFilters = [],
-  gridId,
-}) => {
+  pageSize = 12,
+}) {
   const [items, setItems] = useState([]);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  const pageTitle = useMemo(
-    () => (title ? `${title} – Paon Flowers` : "Paon Flowers"),
-    [title]
-  );
+  // cart context
+  const cartCtx = useCart(); // { state, dispatch }
+  const dispatch = cartCtx?.dispatch;
 
-  const parseList = (data) => {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.items)) return data.items;
-    if (Array.isArray(data?.products)) return data.products;
-    if (Array.isArray(data?.data)) return data.data;
-    // some APIs nest into pagination; we’re defensive:
-    if (Array.isArray(data?.pagination?.items)) return data.pagination.items;
-    return [];
-  };
-
-  const fetchOnce = async (paramsObj = {}) => {
-    const url = new URL(`${API_BASE}/products`);
-    Object.entries(paramsObj).forEach(([k, v]) => {
-      if (v != null && v !== "") url.searchParams.set(k, v);
+  const paramsString = useMemo(() => {
+    const params = new URLSearchParams({
+      limit: String(pageSize),
+      sort: "-createdAt",
     });
-    if (!url.searchParams.has("limit")) url.searchParams.set("limit", "12");
-    if (!url.searchParams.has("sort"))
-      url.searchParams.set("sort", "-createdAt");
 
-    const r = await fetch(url.toString(), { credentials: "include" });
-    if (!r.ok) throw new Error(await r.text());
-    const data = await r.json();
-    return parseList(data);
-  };
+    // Prefer explicit query prop
+    if (query.occasion) params.set("occasion", query.occasion);
+    if (query.type || query.flowerType)
+      params.set("type", query.type || query.flowerType);
+    if (query.color || query.flowerColor || query.colour)
+      params.set("color", query.color || query.flowerColor || query.colour);
+    if (query.collection || query.collections)
+      params.set("collection", query.collection || query.collections);
+    if (query.category) params.set("category", query.category);
+    if (query.featured === true || query.featured === "1")
+      params.set("featured", "1");
+
+    // Back-compat: only `category` passed?
+    if (![...params.keys()].length && category) {
+      if (COLORS.includes(category)) params.set("color", category);
+      else if (TYPES.includes(category)) params.set("type", category);
+      else if (OCCASIONS.includes(category)) params.set("occasion", category);
+      else if (COLLECTIONS.includes(category))
+        params.set("collection", category);
+      else if (String(category).toLowerCase() === "featured")
+        params.set("featured", "1");
+      else params.set("q", category); // fallback search
+    }
+
+    return params.toString();
+  }, [JSON.stringify(query), category, pageSize]);
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      setPending(true);
-      setError("");
+    const run = async () => {
+      setLoading(true);
+      setErr("");
       try {
-        // 1) Try the generic `category` param first (server auto-maps to type/color/occasion/collection)
-        const primary = await fetchOnce({ category });
-        if (alive && primary.length > 0) {
-          setItems(primary);
-          return;
-        }
-
-        // 2) Then try explicit fallbacks (e.g., { key: "occasion", value: "Birthday" })
-        for (const f of altFilters) {
-          if (!alive) return;
-          const list = await fetchOnce({ [f.key]: f.value });
-          if (list.length > 0) {
-            setItems(list);
-            return;
-          }
-        }
-
-        // 3) Nothing found
-        if (alive) setItems([]);
+        const { data } = await api.get(`/api/products?${paramsString}`);
+        setItems(Array.isArray(data) ? data : data.items || []);
       } catch (e) {
-        if (alive) setError(e?.message || "Failed to load products.");
+        setErr(e?.response?.data?.message || e?.message || "Failed to load");
       } finally {
-        if (alive) setPending(false);
+        setLoading(false);
       }
-    })();
-    return () => {
-      alive = false;
     };
-    // re-run only if the target category or fallbacks change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, JSON.stringify(altFilters)]);
+    run();
+  }, [paramsString]);
+
+  const handleAddToCart = (p) => {
+    if (!dispatch) {
+      // optional: silent fallback if provider not mounted
+      try {
+        const key = "cart";
+        const img = p?.images?.[0]?.url || p?.image || "";
+        const { final } = getDiscounted(p?.price, p?.discount);
+        const payload = {
+          id: p?._id || p?.id || p?.slug || String(Math.random()),
+          name: p?.name,
+          price: Number(final.toFixed ? final.toFixed(2) : final),
+          image: img,
+        };
+        const prev = JSON.parse(localStorage.getItem(key) || "[]");
+        const idx = prev.findIndex((it) => it.id === payload.id);
+        if (idx >= 0) prev[idx].quantity = (prev[idx].quantity || 1) + 1;
+        else prev.push({ ...payload, quantity: 1 });
+        localStorage.setItem(key, JSON.stringify(prev));
+        window.dispatchEvent(new Event("storage"));
+      } catch {}
+      return;
+    }
+
+    const img = p?.images?.[0]?.url || p?.image || "";
+    const { final } = getDiscounted(p?.price, p?.discount);
+
+    dispatch({
+      type: "ADD_TO_CART",
+      payload: {
+        id: p?._id || p?.id || p?.slug, // reducer expects `id`
+        name: p?.name,
+        price: Number(final.toFixed ? final.toFixed(2) : final),
+        image: img,
+      },
+    });
+  };
 
   return (
-    <>
-      <Helmet>
-        <title>{pageTitle}</title>
-        {description && <meta name="description" content={description} />}
-      </Helmet>
-
+    <div>
       {/* Hero */}
-      <section
-        className="d-flex align-items-center justify-content-center position-relative"
+      <div
+        className="mb-4"
         style={{
-          minHeight: "300px",
           backgroundImage: `url(${heroImg})`,
           backgroundSize: "cover",
           backgroundPosition: "center",
+          borderRadius: 12,
         }}
       >
-        <div
-          className="position-absolute top-0 start-0 w-100 h-100"
-          style={{ background: "rgba(0,0,0,.45)" }}
-        />
-        <Container style={{ position: "relative", zIndex: 1 }}>
-          <h1 className="display-5 fw-bold text-white">{title}</h1>
-          {description && (
-            <p className="lead mb-4 text-white-50">{description}</p>
-          )}
-          {gridId && (
-            <Button
-              variant="light"
-              size="lg"
-              onClick={() => {
-                const el = document.getElementById(gridId);
-                if (el)
-                  el.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            >
-              Browse
-            </Button>
-          )}
-        </Container>
-      </section>
+        <div style={{ backdropFilter: "brightness(0.85)", borderRadius: 12 }}>
+          <div className="container py-4">
+            <h2 className="mb-1 text-white">{title}</h2>
+            {description && <p className="mb-0 text-light">{description}</p>}
+          </div>
+        </div>
+      </div>
 
       {/* Grid */}
-      <Container className="py-5" id={gridId || "grid"}>
-        {pending && (
-          <div className="d-flex justify-content-center my-5">
-            <Spinner animation="border" role="status" />
+      <div className="container pb-4">
+        {loading ? (
+          <div className="text-center p-4">
+            <div className="spinner-border" role="status" aria-hidden="true" />
+          </div>
+        ) : err ? (
+          <div className="alert alert-danger">{err}</div>
+        ) : items.length === 0 ? (
+          <div className="text-muted p-4 text-center">No items found</div>
+        ) : (
+          <div className="row g-3">
+            {items.map((p, i) => {
+              const img =
+                p?.images?.[0]?.url || p?.image || "/assets/placeholder.png";
+              const { final, has } = getDiscounted(p?.price, p?.discount);
+              const outOfStock = (Number(p?.stock) || 0) <= 0;
+
+              return (
+                <div
+                  className="col-6 col-md-4 col-lg-3"
+                  key={p._id || p.slug || `p-${i}`}
+                >
+                  <div className="card h-100 shadow-sm position-relative">
+                    {/* Discount badge (like offers page) */}
+                    {has && (
+                      <span
+                        className="badge bg-danger position-absolute"
+                        style={{ top: 8, left: 8, zIndex: 2 }}
+                      >
+                        -{Number(p.discount)}%
+                      </span>
+                    )}
+
+                    <img
+                      src={img}
+                      alt={p?.name || "Product"}
+                      className="card-img-top"
+                      style={{ objectFit: "cover", height: 220 }}
+                    />
+
+                    <div className="card-body d-flex flex-column">
+                      <div
+                        className="fw-semibold text-truncate"
+                        title={p?.name}
+                      >
+                        {p?.name || "—"}
+                      </div>
+
+                      {/* Description (2-line clamp) */}
+                      <div
+                        className="small text-muted mt-1"
+                        title={p?.description || ""}
+                        style={{
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                          minHeight: "2.5em",
+                        }}
+                      >
+                        {p?.description || ""}
+                      </div>
+
+                      {/* Price */}
+                      <div className="mt-2">
+                        {has ? (
+                          <>
+                            <span
+                              className="text-muted me-2"
+                              style={{ textDecoration: "line-through" }}
+                            >
+                              {fmt(p?.price)}
+                            </span>
+                            <span className="fw-bold">{fmt(final)}</span>
+                          </>
+                        ) : (
+                          <span className="fw-bold">{fmt(p?.price)}</span>
+                        )}
+                      </div>
+
+                      {/* Spacer */}
+                      <div style={{ flex: 1 }} />
+
+                      {/* Add to Cart */}
+                      <button
+                        className="btn btn-pink w-100 mt-2"
+                        onClick={() => handleAddToCart(p)}
+                        disabled={outOfStock}
+                        title={outOfStock ? "Out of stock" : "Add to cart"}
+                      >
+                        {outOfStock ? "Out of stock" : "Add to Cart"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-        {!pending && error && <Alert variant="danger">{error}</Alert>}
-        {!pending && !error && items.length === 0 && (
-          <Alert variant="secondary">
-            No products found. Add items in the Admin panel and they’ll appear
-            here.
-          </Alert>
-        )}
-
-        <Row xs={1} sm={2} md={3} lg={4} className="g-4">
-          {items.map((p) => (
-            <Col key={p._id || p.slug || p.id}>
-              <Cards product={p} />
-            </Col>
-          ))}
-        </Row>
-      </Container>
-    </>
+      </div>
+    </div>
   );
-};
-
-export default CategoryGridPage;
+}

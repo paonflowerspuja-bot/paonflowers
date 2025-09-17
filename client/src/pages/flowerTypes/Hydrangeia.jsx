@@ -4,15 +4,10 @@ import CategoryGridPage from "../../components/common/CategoryGridPage";
 export default function Hydrangeia() {
   return (
     <CategoryGridPage
-      title="Hydrangea Flowers"
-      description="Cloud-like blooms in dreamy pastels—perfect for luxe arrangements."
-      heroImg="/assets/Types/Hydrangea/hero.jpg"
-      category="Hydrangeia"
-      altFilters={[
-        { key: "type", value: "Hydrangeia" },
-        { key: "type", value: "Hydrangea" },
-        { key: "category", value: "Hydrangea" },
-      ]}
+      title="Hydrangeia"
+      description="Full-bloom Hydrangeia stems in vibrant palettes."
+      heroImg="/images/backdrop.jpg"
+      query={{ type: "Hydrangeia" }}
     />
   );
 }

@@ -5,13 +5,9 @@ export default function Eid() {
   return (
     <CategoryGridPage
       title="Eid Flowers"
-      description="Celebrate Eid with our exquisite flower arrangements."
-      heroImg="/images/eid-hero.jpeg"
-      category="Eid"
-      altFilters={[
-        { key: "category", value: "Eid" },
-        { key: "occasion", value: "Eid" },
-      ]}
+      description="Festive selections for joyful gatherings."
+      heroImg="/images/backdrop.jpg"
+      query={{ occasion: "Eid" }}
     />
   );
 }
