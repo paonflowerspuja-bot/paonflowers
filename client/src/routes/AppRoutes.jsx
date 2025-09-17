@@ -43,7 +43,7 @@ import Signup from "../pages/user/Signup";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 
-import AdminRoute from "../components/admin/AdminRoute"
+import AdminRoute from "../components/admin/AdminRoute";
 import AdminDashboard from "../pages/admin/AdminDashboard";
 import ManageProducts from "../pages/admin/ManageProducts";
 import ManageOrders from "../pages/admin/ManageOrders";
@@ -61,9 +61,9 @@ import BlogPost from "../pages/blog/BlogPost";
 
 import Weddings from "../pages/weddings/Weddings";
 import CustomFlowers from "../pages/customization/CustomFlowers";
-import FeaturedFlowers from "../pages/FeaturedFlowers";
 import ShopAll from "../pages/ShopAll";
 import AboutPaonFlowers from "../pages/AboutPaonFlowers.jsx";
+import FeaturedFlowers from "../pages/FeaturedFlowers/FeaturedFlowers";
 
 // If you have an AdminRoute, you can wrap the /admin element with it.
 const AppRoutes = () => {
@@ -74,6 +74,11 @@ const AppRoutes = () => {
         <Route index element={<Home />} />
         <Route path="shop" element={<ShopAll />} />
 
+        {/* Featured (with a couple of aliases) */}
+        <Route path="FeaturedFlowers" element={<FeaturedFlowers />} />
+        <Route path="featured" element={<FeaturedFlowers />} />
+        <Route path="flowers/featured" element={<FeaturedFlowers />} />
+
         {/* Flower Categories */}
         <Route path="flowers" element={<Flowers />} />
         <Route path="flowers/birthday" element={<Birthday />} />
@@ -83,7 +88,6 @@ const AppRoutes = () => {
         <Route path="flowers/Eid" element={<Eid />} />
         <Route path="flowers/MothersDay" element={<MothersDay />} />
         <Route path="flowers/BridalBoutique" element={<BridalBoutique />} />
-        <Route path="flowers/featured" element={<FeaturedFlowers />} />
 
         {/* Flower Types */}
         <Route path="/flowers/type/hydrangeia" element={<Hydrangeia />} />
@@ -171,7 +175,14 @@ const AppRoutes = () => {
       </Route>
 
       {/* Admin shell OUTSIDE the public <Layout /> */}
-      <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>}>
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        }
+      >
         <Route index element={<></>} /> {/* overview in AdminDashboard */}
         <Route path="products" element={<ManageProducts />} />
         <Route path="orders" element={<ManageOrders />} />

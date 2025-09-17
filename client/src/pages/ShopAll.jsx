@@ -8,6 +8,7 @@ import localProducts from "../data/productsData"; // fallback only
 const PAGE_SIZE = 12;
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ""; // e.g. https://api.example.com
 const USE_API = !!API_BASE;
+
 const CURRENCY = import.meta.env.VITE_CURRENCY || "AED";
 const LOCALE = CURRENCY === "AED" ? "en-AE" : "en-IN";
 
@@ -17,6 +18,17 @@ const formatCurrency = (n) =>
     currency: CURRENCY,
     maximumFractionDigits: 2,
   }).format(Number(n) || 0);
+
+// Compute final price when discount% is present
+const getDiscounted = (price, discount) => {
+  const p = Number(price) || 0;
+  const d = Number(discount) || 0;
+  if (d > 0) {
+    const final = Math.max(0, p - (p * d) / 100);
+    return { final, has: true };
+  }
+  return { final: p, has: false };
+};
 
 // Image helper (supports http(s), data:, /assets)
 const IMG = (p) => {
@@ -48,21 +60,32 @@ const mapSortToServer = (ui) => {
   }
 };
 
+// Normalize incoming product (server or local)
 const normalizeProduct = (p) => {
   if (!p) return null;
   const img =
     (Array.isArray(p.images) && (p.images[0]?.url || p.images[0])) ||
     p.image ||
     p.img;
+
   return {
     id: p._id || p.id || p.slug || slug(p.name || p.title || "flower"),
     _id: p._id,
     slug: p.slug,
     name: p.name || p.title || "Flower",
     image: img,
-    price: p.price ?? 0,
-    mrp: p.mrp,
-    category: p.category || "Bouquet",
+    price: Number(p.price) || 0,
+    // prefer % discount from server, otherwise derive from mrp>price (if provided)
+    discount:
+      typeof p.discount === "number"
+        ? p.discount
+        : p.mrp && Number(p.mrp) > Number(p.price)
+        ? Math.round(((Number(p.mrp) - Number(p.price)) / Number(p.mrp)) * 100)
+        : 0,
+    mrp: typeof p.mrp === "number" ? p.mrp : Number(p.price) || undefined,
+    description: p.description || "",
+    // ✅ no default "Bouquet" here anymore
+    category: typeof p.category === "string" ? p.category : "",
     badge: p.badge,
     isNew: p.isNew,
     bestseller: p.bestseller,
@@ -70,14 +93,26 @@ const normalizeProduct = (p) => {
   };
 };
 
+/* ---------------- HERO backdrops (auto-rotating) ---------------- */
+const HERO_IMAGES = [
+  "/images/backdrop.jpg",
+  "/images/image1.jpg",
+  "/images/paonshop.jpeg",
+  "/images/IMG_4759.JPG",
+];
+
 const ShopAll = () => {
-  const { dispatch, addToCart: ctxAdd } = useCart?.() || {};
+  const { dispatch, addToCart: ctxAdd } =
+    (typeof useCart === "function" && useCart()) || {};
 
   // GSAP refs
   const heroRef = useRef(null);
-  const promoRefs = useRef([]);
+  const heroImageRef = useRef(null);
   const sortRef = useRef(null);
   const cardRefs = useRef([]);
+
+  // Hero rotation
+  const [heroIdx, setHeroIdx] = useState(0);
 
   // Data state
   const [items, setItems] = useState([]);
@@ -126,7 +161,6 @@ const ShopAll = () => {
       // If a newer request finished already, ignore this one
       if (myReqId !== reqIdRef.current) return;
 
-      // Use functional set to compute total reliably and avoid stale closures
       setItems((prev) => {
         const merged = replace ? mapped : [...prev, ...mapped];
         setTotal(Number(data.total) || merged.length);
@@ -150,27 +184,13 @@ const ShopAll = () => {
     }
   };
 
-  // Entrances
+  // Hero & entrance animations
   useEffect(() => {
     if (heroRef.current) {
       gsap.fromTo(
         heroRef.current,
         { autoAlpha: 0, y: -30 },
         { autoAlpha: 1, y: 0, duration: 0.8, ease: "power2.out" }
-      );
-    }
-    if (promoRefs.current.length) {
-      gsap.fromTo(
-        promoRefs.current,
-        { autoAlpha: 0, y: 30 },
-        {
-          autoAlpha: 1,
-          y: 0,
-          duration: 0.6,
-          ease: "power2.out",
-          stagger: 0.15,
-          delay: 0.15,
-        }
       );
     }
     if (sortRef.current) {
@@ -180,6 +200,21 @@ const ShopAll = () => {
         { autoAlpha: 1, y: 0, duration: 0.5, delay: 0.2, ease: "power2.out" }
       );
     }
+  }, []);
+
+  // Auto-rotate hero background with smooth cross-fade
+  useEffect(() => {
+    const id = setInterval(() => {
+      setHeroIdx((i) => (i + 1) % HERO_IMAGES.length);
+      if (heroImageRef.current) {
+        gsap.fromTo(
+          heroImageRef.current,
+          { autoAlpha: 0 },
+          { autoAlpha: 1, duration: 0.6, ease: "power2.out" }
+        );
+      }
+    }, 5500);
+    return () => clearInterval(id);
   }, []);
 
   // Load on mount & when sort/filters change
@@ -192,7 +227,8 @@ const ShopAll = () => {
         .filter(Boolean)
         .filter((p) => {
           const okQ = q
-            ? (p.name || "").toLowerCase().includes(q.toLowerCase())
+            ? (p.name || "").toLowerCase().includes(q.toLowerCase()) ||
+              (p.description || "").toLowerCase().includes(q.toLowerCase())
             : true;
           const price = Number(p.price) || 0;
           const okMin = min !== "" ? price >= Number(min) : true;
@@ -232,6 +268,7 @@ const ShopAll = () => {
 
   const visibleProducts = USE_API ? items : sortedLocal.slice(0, visibleCount);
 
+  // Updated Add to Cart: use discounted price if present
   const addToCart = (item) => {
     const base = item?.name || "Flower";
     const stable =
@@ -239,26 +276,30 @@ const ShopAll = () => {
       item?._id ||
       item?.slug ||
       `${slug(base)}-${slug(String(item?.price ?? ""))}`;
+
+    const { final } = getDiscounted(item?.price, item?.discount);
     const payload = {
       id: stable,
       _id: item?._id,
       slug: item?.slug,
       name: base,
       image: IMG(item?.image),
-      price: Number(item?.price) || 0,
+      price: Number(final),
       quantity: 1,
     };
+
     if (typeof ctxAdd === "function") ctxAdd(payload, 1);
     else if (dispatch) dispatch({ type: "ADD_TO_CART", payload });
     else alert("Added to cart");
   };
 
-  // Animate cards when count changes
+  // Animate cards when count changes (filter out nulls to avoid GSAP errors)
   useEffect(() => {
-    if (!cardRefs.current.length) return;
-    gsap.set(cardRefs.current, { autoAlpha: 1 });
+    const nodes = (cardRefs.current || []).filter(Boolean);
+    if (!nodes.length) return;
+    gsap.set(nodes, { autoAlpha: 1 });
     gsap.fromTo(
-      cardRefs.current,
+      nodes,
       { autoAlpha: 0, y: 24 },
       { autoAlpha: 1, y: 0, duration: 0.45, ease: "power2.out", stagger: 0.05 }
     );
@@ -266,24 +307,6 @@ const ShopAll = () => {
       cardRefs.current = cardRefs.current.slice(0, visibleProducts.length);
     };
   }, [visibleProducts.length]);
-
-  const promos = [
-    {
-      title: "Fresh Bouquets",
-      subtitle: "Hand-tied daily",
-      img: "/assets/shop/promo1.jpg",
-    },
-    {
-      title: "Seasonal Bestsellers",
-      subtitle: "Trending this week",
-      img: "/assets/shop/promo2.jpg",
-    },
-    {
-      title: "Gifts & Add-ons",
-      subtitle: "Teddy • Balloons • Cards",
-      img: "/assets/shop/promo3.jpg",
-    },
-  ];
 
   const onLoadMore = () => {
     if (USE_API) fetchPage(page + 1);
@@ -314,40 +337,79 @@ const ShopAll = () => {
         />
       </Helmet>
 
-      {/* HERO */}
-      <section className="container py-4">
-        <div ref={heroRef} className="mb-3">
-          <h1 className="display-6 fw-bold paon-heading">Shop All Flowers</h1>
-          <p className="text-muted mb-0">
-            Same-day Dubai delivery • Premium stems • Hand-tied with love
-          </p>
-        </div>
-
-        <div className="row g-3">
-          {promos.map((b, i) => (
-            <div className="col-12 col-md-4" key={i}>
-              <div
-                className="promo-tile rounded-4 overflow-hidden shadow-sm position-relative"
-                ref={(el) => (promoRefs.current[i] = el)}
+      {/* HERO – modern, responsive, auto-rotating background (fixed layering) */}
+      <section
+        className="position-relative overflow-hidden"
+        style={{ minHeight: "56vh" }}
+        ref={heroRef}
+      >
+        {/* Background image layer */}
+        <div
+          ref={heroImageRef}
+          className="position-absolute top-0 start-0 w-100 h-100"
+          style={{
+            backgroundImage: `url('${HERO_IMAGES[heroIdx]}')`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            filter: "brightness(0.95)",
+          }}
+        />
+        {/* Soft gradient overlay for readability */}
+        <div
+          className="position-absolute top-0 start-0 w-100 h-100"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(255,255,255,0.0) 0%, rgba(255,255,255,0.78) 55%, rgba(255,255,255,0.95) 100%)",
+          }}
+        />
+        {/* Content */}
+        <div className="position-relative container py-5" style={{ zIndex: 2 }}>
+          <div className="row align-items-center">
+            <div className="col-lg-7">
+              <h1
+                className="fw-bold paon-heading mb-2"
+                style={{ fontSize: "clamp(1.8rem, 1.6rem + 2vw, 2.75rem)" }}
               >
-                <div className="ratio ratio-21x9">
-                  <img
-                    src={IMG(b.img)}
-                    alt={b.title}
-                    className="w-100 h-100"
-                    style={{ objectFit: "cover" }}
-                    onError={(e) => (e.currentTarget.src = "/assets/rose.jpg")}
-                  />
+                Shop All Flowers
+              </h1>
+              <p className="text-muted mb-3">
+                Same-day Dubai delivery • Premium stems • Hand-tied with love
+              </p>
+
+              {/* Quick search inline */}
+              <div
+                className="input-group input-group-lg"
+                style={{ maxWidth: 520 }}
+              >
+                <span className="input-group-text">Search</span>
+                <input
+                  type="search"
+                  className="form-control"
+                  placeholder="Roses, bouquets, pastel…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Hero stats */}
+            <div className="col-lg-5 mt-4 mt-lg-0">
+              <div className="row g-3">
+                <div className="col-6">
+                  <div className="bg-white rounded-4 shadow-sm p-3 text-center">
+                    <div className="h4 mb-0">{totalCount || "—"}</div>
+                    <div className="small text-muted">Products</div>
+                  </div>
                 </div>
-                <div className="promo-overlay d-flex flex-column justify-content-end p-3">
-                  <div>
-                    <h5 className="mb-0">{b.title}</h5>
-                    <small className="text-muted">{b.subtitle}</small>
+                <div className="col-6">
+                  <div className="bg-white rounded-4 shadow-sm p-3 text-center">
+                    <div className="h4 mb-0">AED 0</div>
+                    <div className="small text-muted">Free Delivery Over</div>
                   </div>
                 </div>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       </section>
 
@@ -361,21 +423,6 @@ const ShopAll = () => {
             </div>
 
             <div className="d-flex flex-wrap gap-2 align-items-center">
-              {/* Search */}
-              <div
-                className="input-group input-group-sm"
-                style={{ minWidth: 220 }}
-              >
-                <span className="input-group-text">Search</span>
-                <input
-                  type="search"
-                  className="form-control"
-                  placeholder="Roses, box, pastel…"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                />
-              </div>
-
               {/* Price */}
               <div
                 className="input-group input-group-sm"
@@ -452,19 +499,31 @@ const ShopAll = () => {
               </div>
             ))}
 
-          {visibleProducts.map((p, idx) => (
-            <div
-              key={p?.id ?? `prod-${idx}`}
-              className="col-6 col-md-4 col-lg-3"
-              ref={(el) => (cardRefs.current[idx] = el)}
-            >
-              <div className="card product-card h-100 border-0 shadow-sm">
-                <div className="position-relative">
-                  {(p?.badge || p?.isNew || p?.bestseller) && (
+          {visibleProducts.map((p, idx) => {
+            const { final, has } = getDiscounted(p.price, p.discount);
+            const outOfStock = (Number(p?.stock) || 0) <= 0;
+
+            return (
+              <div
+                key={p?.id ?? `prod-${idx}`}
+                className="col-6 col-md-4 col-lg-3"
+                ref={(el) => (cardRefs.current[idx] = el)}
+              >
+                <div className="card product-card h-100 border-0 shadow-sm position-relative">
+                  {/* Discount badge OR legacy badge */}
+                  {has ? (
+                    <span
+                      className="badge bg-danger position-absolute m-2"
+                      style={{ zIndex: 2 }}
+                    >
+                      -{Number(p.discount)}%
+                    </span>
+                  ) : p?.badge || p?.isNew || p?.bestseller ? (
                     <span className="badge paon-badge position-absolute m-2">
                       {p?.badge || (p?.isNew ? "New" : "Bestseller")}
                     </span>
-                  )}
+                  ) : null}
+
                   <div className="ratio ratio-1x1">
                     <img
                       src={IMG(p?.image)}
@@ -477,39 +536,84 @@ const ShopAll = () => {
                       }
                     />
                   </div>
-                </div>
 
-                <div className="card-body d-flex flex-column">
-                  <div className="small text-muted mb-1">
-                    {p?.category || "Bouquet"}
-                  </div>
-                  <h6 className="mb-1 fw-semibold text-truncate">{p?.name}</h6>
-                  <div className="mb-2">
-                    <span className="fw-bold">{formatCurrency(p?.price)}</span>
-                    {p?.mrp && Number(p.mrp) > (Number(p.price) || 0) && (
-                      <small className="text-muted ms-2 text-decoration-line-through">
-                        {formatCurrency(p.mrp)}
-                      </small>
-                    )}
-                  </div>
+                  <div className="card-body d-flex flex-column">
+                    {/* ✅ Show category only if it exists; no default “Bouquet” */}
+                    {p?.category ? (
+                      <div className="small text-muted mb-1">{p.category}</div>
+                    ) : null}
 
-                  <div className="mt-auto d-grid gap-2">
-                    <button className="btn btn-outline-secondary btn-sm">
-                      View Details
-                    </button>
-                    <button
-                      className="btn btn-pink btn-sm"
-                      onClick={() => addToCart(p)}
-                      disabled={p?.stock === 0}
-                      title={p?.stock === 0 ? "Out of stock" : "Add to cart"}
+                    <h6
+                      className="mb-1 fw-semibold text-truncate"
+                      title={p?.name}
                     >
-                      {p?.stock === 0 ? "Unavailable in Dubai" : "Add to Cart"}
-                    </button>
+                      {p?.name}
+                    </h6>
+
+                    {/* Description (2-line clamp) */}
+                    <div
+                      className="small text-muted mb-2"
+                      title={p?.description || ""}
+                      style={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        minHeight: "2.5em",
+                      }}
+                    >
+                      {p?.description || ""}
+                    </div>
+
+                    {/* Price with discount display */}
+                    <div className="mb-2">
+                      {has ? (
+                        <>
+                          <span
+                            className="text-muted me-2"
+                            style={{ textDecoration: "line-through" }}
+                          >
+                            {formatCurrency(p?.price)}
+                          </span>
+                          <span className="fw-bold">
+                            {formatCurrency(final)}
+                          </span>
+                        </>
+                      ) : p?.mrp && Number(p.mrp) > (Number(p.price) || 0) ? (
+                        <>
+                          <span
+                            className="text-muted me-2"
+                            style={{ textDecoration: "line-through" }}
+                          >
+                            {formatCurrency(p.mrp)}
+                          </span>
+                          <span className="fw-bold">
+                            {formatCurrency(p?.price)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="fw-bold">
+                          {formatCurrency(p?.price)}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Only Add to Cart */}
+                    <div className="mt-auto d-grid">
+                      <button
+                        className="btn btn-pink btn-sm"
+                        onClick={() => addToCart(p)}
+                        disabled={outOfStock}
+                        title={outOfStock ? "Out of stock" : "Add to cart"}
+                      >
+                        {outOfStock ? "Unavailable in Dubai" : "Add to Cart"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {visibleProducts.length === 0 && !loading && (
             <div className="col-12">

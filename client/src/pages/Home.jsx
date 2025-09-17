@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 import Testimonials from "./testimonials/Testimonials";
 import WhyChooseUs from "./WhyChooseUs/WhyChooseUs";
-import FeaturedFlowers from "./FeaturedFlowers/FeaturedFlowers";
+import HomeFeaturedFlowers from "./FeaturedFlowers/HomeFeaturedFlowers";
 
 // If you prefer bundling the Birthday image instead of relying on runtime path,
 // uncomment this and use <img src={birthdayImg} .../>
@@ -38,7 +38,8 @@ const Home = () => {
         </div>
       </div>
 
-      <FeaturedFlowers />
+      {/* Featured carousel section */}
+      <HomeFeaturedFlowers />
 
       {/* Section 1 */}
       <div className="container my-5 px-3 px-md-4">
