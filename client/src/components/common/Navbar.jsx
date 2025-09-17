@@ -134,18 +134,6 @@ const Navbar = () => {
           {/* Profile / Auth */}
           <UserMenu />
 
-          {/* Admin (top bar, md+) */}
-          {/* {showAdmin && (
-            <Link
-              to="/admin"
-              className="text-decoration-none text-muted d-none d-md-inline"
-              onClick={closeCollapse}
-              aria-label="Admin"
-            >
-              Admin
-            </Link>
-          )} */}
-
           {/* Cart */}
           <Link
             to="/cart"
@@ -179,7 +167,7 @@ const Navbar = () => {
         style={{ zIndex: 1020, top: 0, willChange: "transform" }}
         aria-label="Primary Navigation"
       >
-        <div className="container-fluid">
+        <div className="container-fluid position-relative">
           {/* Toggler */}
           <button
             className="navbar-toggler ms-auto"
@@ -192,6 +180,18 @@ const Navbar = () => {
           >
             <span className="navbar-toggler-icon"></span>
           </button>
+
+          {/* Desktop CTA (absolute so it doesn't shift the centered tabs) */}
+          <div className="d-none d-lg-block position-absolute end-0 me-2">
+            <Link
+              to="/offers"
+              onClick={closeCollapse}
+              className="btn btn-pink px-4 py-2"
+              aria-label="View current offers"
+            >
+              Grab Your Deal
+            </Link>
+          </div>
 
           {/* Links */}
           <div className="collapse navbar-collapse" id="mainNavbar">
@@ -426,6 +426,18 @@ const Navbar = () => {
               <li className="nav-item">
                 <Link className="nav-link" to="/blog" onClick={closeCollapse}>
                   Blog
+                </Link>
+              </li>
+
+              {/* Mobile CTA (inside collapse, full width) */}
+              <li className="nav-item d-lg-none mt-2">
+                <Link
+                  to="/offers"
+                  onClick={closeCollapse}
+                  className="btn btn-pink w-100"
+                  aria-label="View current offers"
+                >
+                  Grab Your Deal
                 </Link>
               </li>
             </ul>
