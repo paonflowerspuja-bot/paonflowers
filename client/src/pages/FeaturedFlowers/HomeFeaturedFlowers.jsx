@@ -102,7 +102,7 @@ const HomeFeaturedFlowers = () => {
   return (
     <section className="py-5 px-3 px-md-5">
       <div className="container text-center">
-        <h2 className="mb-4 subheading2">Featured Flowers</h2>
+        <h2 className="heading2 fw-bold">Featured Flowers</h2>
 
         {error && (
           <div

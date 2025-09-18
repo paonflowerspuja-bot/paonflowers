@@ -1239,3 +1239,20 @@ textarea.form-control {
     transform: none !important;
   }
 }
+
+/* Testimonials rail — hide horizontal scrollbar cross-browser */
+.pf-rail {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge legacy */
+}
+.pf-rail::-webkit-scrollbar {
+  /* Chrome/Safari */
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+/* Hide horizontal scrollbar for the WhyChooseUs rail */
+.pf-why-rail::-webkit-scrollbar {
+  display: none;
+}
