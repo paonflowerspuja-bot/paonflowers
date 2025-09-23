@@ -92,30 +92,47 @@ const allowList = (process.env.CORS_ORIGIN || "http://localhost:5173")
   .map((s) => s.trim())
   .filter(Boolean);
 
+// Helpful debug during dev to see exactly what origin arrives
+if (!isProd) {
+  app.use((req, _res, next) => {
+    console.log("Incoming origin header:", req.headers.origin);
+    next();
+  });
+}
+
+// Build reusable corsOptions so we can use them for app.use and app.options
+const corsOptions = {
+  origin(origin, cb) {
+    // allow non-browser requests (curl, server-to-server)
+    if (!origin) return cb(null, true);
+
+    // allow configured list
+    if (allowList.includes(origin)) return cb(null, true);
+
+    // special-case local dev origin formats when NODE_ENV not set
+    if (
+      !process.env.NODE_ENV &&
+      /^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin)
+    ) {
+      return cb(null, true);
+    }
+
+    return cb(new Error(`CORS: origin ${origin} not allowed`), false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
 app.use((req, res, next) => {
+  // ensure Vary: Origin to allow proper caching behavior when different origins are served
   res.setHeader("Vary", "Origin");
   next();
 });
 
-app.use(
-  cors({
-    origin(origin, cb) {
-      if (!origin) return cb(null, true);
-      if (allowList.includes(origin)) return cb(null, true);
-      if (
-        !process.env.NODE_ENV &&
-        /^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin)
-      ) {
-        return cb(null, true);
-      }
-      return cb(new Error(`CORS: origin ${origin} not allowed`), false);
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-app.options("*", cors());
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // ensure preflight uses same options
 
 // ------------------------
 // Security / core middleware
@@ -136,21 +153,45 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // ------------------------
 // Static: local uploads
 // ------------------------
-const allowOrigin = allowList[0] || "*";
+// IMPORTANT: compute Access-Control-Allow-Origin per-request (echo) instead of
+// always using allowList[0], so Netlify or other allowed origins get served correctly.
 app.use(
   "/uploads",
   (req, res, next) => {
-    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-    res.setHeader("Access-Control-Allow-Origin", allowOrigin);
-    res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "*");
-    next();
+    const origin = req.headers.origin;
+    // If origin is absent (curl etc.), allow using the first allowed origin or *
+    if (!origin) {
+      res.setHeader("Access-Control-Allow-Origin", allowList[0] || "*");
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type,Authorization"
+      );
+      return next();
+    }
+
+    // If origin present and allowed, echo it (required when credentials=true)
+    if (allowList.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type,Authorization"
+      );
+      return next();
+    }
+
+    // otherwise, don't set CORS headers (will be blocked by browser)
+    return next();
   },
   express.static(path.join(process.cwd(), "uploads"), {
     setHeaders(res) {
+      // Keep cache & cross-origin resource policy headers here
       res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-      res.setHeader("Access-Control-Allow-Origin", allowOrigin);
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      // Access-Control-Allow-Origin is set per-request above
     },
   })
 );
