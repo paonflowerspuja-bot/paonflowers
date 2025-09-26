@@ -62,7 +62,7 @@ const ProductSchema = new mongoose.Schema(
     discount: { type: Number, default: 0 }, // percent
     offerId: { type: mongoose.Schema.Types.ObjectId, ref: "Offer" },
   },
-  { timestamps: true }
+  { timestamps: true, suppressReservedKeysWarning: true }
 );
 
 ProductSchema.index({ name: "text", description: "text", tags: "text" });

@@ -364,7 +364,7 @@ export const listProducts = async (req, res, next) => {
     }
 
     const p = Math.max(1, parseNum(page) ?? 1);
-    const lim = Math.max(1, Math.min(100, parseNum(limit) ?? 12));
+    const lim = Math.max(1, Math.min(50, parseNum(limit) ?? 12));
     const skip = (p - 1) * lim;
 
     const sortMap = {

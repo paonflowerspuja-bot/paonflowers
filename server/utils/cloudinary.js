@@ -17,6 +17,10 @@ export function uploadBuffer(buffer, opts = {}) {
         folder: FOLDER,
         resource_type: "image",
         overwrite: false,
+        transformation: [
+          { quality: "auto", fetch_format: "auto" }, // compress & auto webp/jpg
+          { width: 1200, crop: "limit" }, // cap width
+        ],
         ...opts,
       },
       (err, result) => (err ? reject(err) : resolve(result))
