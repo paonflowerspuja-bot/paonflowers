@@ -1,6 +1,6 @@
 // client/src/pages/admin/ManageProducts.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import api from "../../utils/api";
+import api, { postMultipart, patchMultipart } from "../../utils/api"; // 👈 updated import
 
 const CURRENCY = import.meta.env.VITE_CURRENCY || "AED";
 const LOCALE = CURRENCY === "AED" ? "en-AE" : "en-IN";
@@ -196,18 +196,19 @@ export default function ManageProducts() {
       const fd = buildFormData(payload);
 
       if (editing?._id) {
-        const { data } = await api.patch(`/api/products/${editing._id}`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        // 👇 use upload-safe client (30s timeout; multipart headers auto)
+        const { data } = await patchMultipart(
+          `/api/products/${editing._id}`,
+          fd
+        );
         const updated = asProduct(data);
         if (!updated?._id) throw new Error("Update failed: invalid response");
         setItems((prev) =>
           prev.map((x) => (x._id === updated._id ? updated : x))
         );
       } else {
-        const { data } = await api.post(`/api/products`, fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        // 👇 use upload-safe client (30s timeout; multipart headers auto)
+        const { data } = await postMultipart(`/api/products`, fd);
         const created = asProduct(data);
         if (!created?._id) throw new Error("Create failed: invalid response");
         setItems((prev) => [created, ...prev]);
@@ -306,6 +307,7 @@ export default function ManageProducts() {
                                 borderRadius: 8,
                                 marginRight: 10,
                               }}
+                              loading="lazy" // 👈 small perf win
                             />
                             <div>
                               <div className="fw-semibold">

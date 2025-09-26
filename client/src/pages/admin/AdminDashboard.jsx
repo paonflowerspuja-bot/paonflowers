@@ -1,7 +1,7 @@
 // src/pages/admin/AdminDashboard.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import api from "../../utils/api"; // <-- use axios instance that points to `${HOST}/api`
+import api from "../../utils/api"; // <-- axios instance
 
 // One source of truth for sidebar width (can be overriden via env)
 const SIDEBAR_W =
@@ -49,7 +49,7 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
 
-      // Try metrics endpoint; if missing, fall back to composing counts from orders/products
+      // 1) Try metrics endpoint first (fast path)
       let mergedMetrics = {};
       try {
         const mRes = await api.get("/admin/metrics");
@@ -61,9 +61,10 @@ const AdminDashboard = () => {
           lowStockCount: m.lowStockCount ?? null,
         };
       } catch {
-        // metrics route missing → fine, we’ll derive minimal info below
+        // metrics not available → we’ll compute fallbacks below
       }
 
+      // 2) Always fetch recent lists for the cards (limit 5)
       const [ordersRes, productsRes] = await Promise.allSettled([
         api.get("/orders", { params: { limit: 5, sort: "-createdAt" } }),
         api.get("/products", { params: { limit: 5, sort: "-createdAt" } }),
@@ -85,18 +86,110 @@ const AdminDashboard = () => {
         ? productsData
         : productsData?.items || productsData?.products || [];
 
-      // If metrics endpoint wasn’t available, compute minimal counts
+      // True totals for stat cards when metrics endpoint is absent
+      const productsTotal =
+        (productsData && (productsData.total ?? productsData.count)) ??
+        recentProductsList.length;
+
+      const ordersTotal =
+        (ordersData && (ordersData.total ?? ordersData.count)) ??
+        recentOrdersList.length;
+
       if (mergedMetrics.productsCount == null)
-        mergedMetrics.productsCount = recentProductsList.length ?? 0;
+        mergedMetrics.productsCount = productsTotal;
+
       if (mergedMetrics.ordersCount == null)
-        mergedMetrics.ordersCount = recentOrdersList.length ?? 0;
+        mergedMetrics.ordersCount = ordersTotal;
+
+      // 3) Client-only FALLBACKS (only if metrics did not provide them)
+      //    Keep light by sampling up to 200 docs each.
+      const lowStockThreshold =
+        Number(import.meta.env.VITE_LOW_STOCK_THRESHOLD) > 0
+          ? Number(import.meta.env.VITE_LOW_STOCK_THRESHOLD)
+          : 5;
+
+      const needsRevenue = mergedMetrics.revenueToday == null;
+      const needsLowStock = mergedMetrics.lowStockCount == null;
+
+      if (needsRevenue || needsLowStock) {
+        const extraCalls = [];
+
+        if (needsRevenue) {
+          extraCalls.push(
+            api
+              .get("/orders", {
+                params: { limit: 200, sort: "-createdAt" },
+              })
+              .then((r) => r.data)
+              .catch(() => null)
+          );
+        } else {
+          extraCalls.push(Promise.resolve(null));
+        }
+
+        if (needsLowStock) {
+          // Sort by stock ASC to pull low-stock products first
+          extraCalls.push(
+            api
+              .get("/products", {
+                params: { limit: 200, sort: "stock" },
+              })
+              .then((r) => r.data)
+              .catch(() => null)
+          );
+        } else {
+          extraCalls.push(Promise.resolve(null));
+        }
+
+        const [ordersBig, productsBig] = await Promise.all(extraCalls);
+
+        // Revenue today fallback (sum of today's orders)
+        if (needsRevenue) {
+          const bigList = Array.isArray(ordersBig)
+            ? ordersBig
+            : ordersBig?.items || ordersBig?.orders || [];
+          const startOfDay = new Date();
+          startOfDay.setHours(0, 0, 0, 0);
+
+          const revenueToday = bigList.reduce((sum, o) => {
+            if (!o?.createdAt) return sum;
+            const t = new Date(o.createdAt).getTime();
+            if (t >= startOfDay.getTime()) {
+              // Use o.total if present; otherwise 0
+              const eligible =
+                // If you only want paid/delivered revenue, filter status here:
+                // ["paid", "delivered"].includes(String(o.status || "").toLowerCase())
+                true;
+              return eligible ? sum + Number(o.total || 0) : sum;
+            }
+            return sum;
+          }, 0);
+
+          mergedMetrics.revenueToday = revenueToday;
+        }
+
+        // Low stock fallback (count products with stock <= threshold)
+        if (needsLowStock) {
+          const bigListP = Array.isArray(productsBig)
+            ? productsBig
+            : productsBig?.items || productsBig?.products || [];
+          const lowStockCount = bigListP.reduce((cnt, p) => {
+            const s = Number(p?.stock ?? Infinity);
+            return cnt + (Number.isFinite(s) && s <= lowStockThreshold ? 1 : 0);
+          }, 0);
+
+          mergedMetrics.lowStockCount = lowStockCount;
+        }
+      }
 
       setMetrics((prev) => ({ ...prev, ...mergedMetrics }));
       setRecentOrders(recentOrdersList);
       setRecentProducts(recentProductsList);
       setLastUpdated(new Date());
     } catch (e) {
-      setErr(e?.response?.data?.message || e?.message || "Failed to load admin data.");
+      setErr(
+        e?.response?.data?.message || e?.message || "Failed to load admin data."
+      );
     } finally {
       setLoading(false);
     }
@@ -161,7 +254,9 @@ const AdminDashboard = () => {
           <ul className="list-unstyled m-0">
             <li className="mb-2">
               <Link
-                className={`admin-nav-link ${isActive("/admin") ? "active" : ""}`}
+                className={`admin-nav-link ${
+                  isActive("/admin") ? "active" : ""
+                }`}
                 to="/admin"
               >
                 Dashboard
@@ -169,7 +264,9 @@ const AdminDashboard = () => {
             </li>
             <li className="mb-2">
               <Link
-                className={`admin-nav-link ${isActive("/admin/products") ? "active" : ""}`}
+                className={`admin-nav-link ${
+                  isActive("/admin/products") ? "active" : ""
+                }`}
                 to="/admin/products"
               >
                 <i className="bi bi-box me-2"></i>Manage Products
@@ -177,7 +274,9 @@ const AdminDashboard = () => {
             </li>
             <li className="mb-2">
               <Link
-                className={`admin-nav-link ${isActive("/admin/orders") ? "active" : ""}`}
+                className={`admin-nav-link ${
+                  isActive("/admin/orders") ? "active" : ""
+                }`}
                 to="/admin/orders"
               >
                 <i className="bi bi-receipt me-2"></i>Manage Orders
@@ -185,7 +284,9 @@ const AdminDashboard = () => {
             </li>
             <li className="mb-2">
               <Link
-                className={`admin-nav-link ${isActive("/admin/offers") ? "active" : ""}`}
+                className={`admin-nav-link ${
+                  isActive("/admin/offers") ? "active" : ""
+                }`}
                 to="/admin/offers"
               >
                 <i className="bi bi-tag me-2"></i>Manage Offers
@@ -193,7 +294,9 @@ const AdminDashboard = () => {
             </li>
             <li className="mb-2">
               <Link
-                className={`admin-nav-link ${isActive("/admin/delivery") ? "active" : ""}`}
+                className={`admin-nav-link ${
+                  isActive("/admin/delivery") ? "active" : ""
+                }`}
                 to="/admin/delivery"
               >
                 <i className="bi bi-truck me-2"></i>Delivery Status
@@ -201,7 +304,9 @@ const AdminDashboard = () => {
             </li>
             <li className="mb-2">
               <Link
-                className={`admin-nav-link ${isActive("/admin/customers") ? "active" : ""}`}
+                className={`admin-nav-link ${
+                  isActive("/admin/customers") ? "active" : ""
+                }`}
                 to="/admin/customers"
               >
                 <i className="bi bi-people me-2"></i>Customers
@@ -221,8 +326,15 @@ const AdminDashboard = () => {
         data-bs-scroll="true"
       >
         <div className="offcanvas-header">
-          <h5 className="offcanvas-title" id="adminSidebarLabel">🌸 Paon Admin</h5>
-          <button type="button" className="btn-close" data-bs-dismiss="offcanvas" aria-label="Close" />
+          <h5 className="offcanvas-title" id="adminSidebarLabel">
+            🌸 Paon Admin
+          </h5>
+          <button
+            type="button"
+            className="btn-close"
+            data-bs-dismiss="offcanvas"
+            aria-label="Close"
+          />
         </div>
         <div className="offcanvas-body d-flex flex-column">
           <nav className="flex-grow-1">
@@ -290,7 +402,10 @@ const AdminDashboard = () => {
                     checked={autoRefresh}
                     onChange={(e) => setAutoRefresh(e.target.checked)}
                   />
-                  <label className="form-check-label small" htmlFor="autoRefreshSwitch">
+                  <label
+                    className="form-check-label small"
+                    htmlFor="autoRefreshSwitch"
+                  >
                     Auto refresh
                   </label>
                 </div>
@@ -396,13 +511,16 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {!!err && <div className="alert alert-danger my-3">{String(err)}</div>}
+              {!!err && (
+                <div className="alert alert-danger my-3">{String(err)}</div>
+              )}
 
               {/* Meta: last updated */}
               <div className="d-flex align-items-center gap-2 small text-muted mt-2">
                 <i className="bi bi-clock"></i>
                 <span>
-                  Last updated: {lastUpdated ? lastUpdated.toLocaleString() : "—"}
+                  Last updated:{" "}
+                  {lastUpdated ? lastUpdated.toLocaleString() : "—"}
                 </span>
               </div>
 
@@ -412,7 +530,9 @@ const AdminDashboard = () => {
                   <div className="card shadow-sm h-100">
                     <div className="card-header bg-white d-flex justify-content-between align-items-center">
                       <h6 className="mb-0">Recent Orders</h6>
-                      <Link to="/admin/orders" className="small">View all</Link>
+                      <Link to="/admin/orders" className="small">
+                        View all
+                      </Link>
                     </div>
                     <div className="card-body p-0">
                       <div className="table-responsive">
@@ -430,20 +550,29 @@ const AdminDashboard = () => {
                             {loading && (
                               <tr>
                                 <td colSpan={5} className="text-center p-4">
-                                  <div className="spinner-border" role="status" aria-hidden="true"></div>
+                                  <div
+                                    className="spinner-border"
+                                    role="status"
+                                    aria-hidden="true"
+                                  ></div>
                                 </td>
                               </tr>
                             )}
                             {!loading && recentOrders.length === 0 && (
                               <tr>
-                                <td colSpan={5} className="text-center p-4 text-muted">
+                                <td
+                                  colSpan={5}
+                                  className="text-center p-4 text-muted"
+                                >
                                   No recent orders
                                 </td>
                               </tr>
                             )}
                             {recentOrders.map((o) => (
                               <tr key={o._id}>
-                                <td className="fw-semibold">#{String(o._id).slice(-6)}</td>
+                                <td className="fw-semibold">
+                                  #{String(o._id).slice(-6)}
+                                </td>
                                 <td>{o?.customer?.name || o?.name || "—"}</td>
                                 <td>{fmt(o?.total || 0)}</td>
                                 <td>
@@ -479,31 +608,56 @@ const AdminDashboard = () => {
                   <div className="card shadow-sm h-100">
                     <div className="card-header bg-white d-flex justify-content-between align-items-center">
                       <h6 className="mb-0">New Products</h6>
-                      <Link to="/admin/products" className="small">Manage</Link>
+                      <Link to="/admin/products" className="small">
+                        Manage
+                      </Link>
                     </div>
                     <div className="list-group list-group-flush">
                       {loading && (
                         <div className="p-4 text-center">
-                          <div className="spinner-border" role="status" aria-hidden="true"></div>
+                          <div
+                            className="spinner-border"
+                            role="status"
+                            aria-hidden="true"
+                          ></div>
                         </div>
                       )}
                       {!loading && recentProducts.length === 0 && (
-                        <div className="p-4 text-center text-muted">No products yet</div>
+                        <div className="p-4 text-center text-muted">
+                          No products yet
+                        </div>
                       )}
                       {recentProducts.map((p) => (
-                        <div className="list-group-item d-flex align-items-center" key={p._id}>
+                        <div
+                          className="list-group-item d-flex align-items-center"
+                          key={p._id}
+                        >
                           <img
-                            src={p?.images?.[0]?.url || p?.images?.[0] || "/assets/placeholder.jpg"}
+                            src={
+                              p?.images?.[0]?.url ||
+                              p?.images?.[0] ||
+                              "/assets/placeholder.jpg"
+                            }
                             alt={p?.name}
-                            style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 8 }}
+                            style={{
+                              width: 48,
+                              height: 48,
+                              objectFit: "cover",
+                              borderRadius: 8,
+                            }}
                             loading="lazy"
                           />
                           <div className="ms-3">
                             <div className="fw-semibold">{p?.name}</div>
-                            <div className="small text-muted">{fmt(p?.price)}</div>
+                            <div className="small text-muted">
+                              {fmt(p?.price)}
+                            </div>
                           </div>
                           <div className="ms-auto">
-                            <Link to={`/admin/products/edit/${p?._id}`} className="btn btn-sm btn-outline-secondary">
+                            <Link
+                              to={`/admin/products/edit/${p?._id}`}
+                              className="btn btn-sm btn-outline-secondary"
+                            >
                               Edit
                             </Link>
                           </div>
