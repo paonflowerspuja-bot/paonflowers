@@ -1,4 +1,4 @@
-// config/sms.js
+// server/config/sms.js
 import twilio from "twilio";
 
 const SMS_DRY_RUN = String(process.env.SMS_DRY_RUN).toLowerCase() === "true";
@@ -16,10 +16,25 @@ export const sendOtpViaSms = async (phone) => {
     );
     return { ok: true, dryRun: true };
   }
-  await client.verify.v2
-    .services(VERIFY_SID)
-    .verifications.create({ to: phone, channel: "sms" });
-  return { ok: true };
+  try {
+    const resp = await client.verify.v2
+      .services(VERIFY_SID)
+      .verifications.create({ to: phone, channel: "sms" });
+    console.log(
+      `✅ Twilio Verify sent: to=${phone} sid=${resp.sid} status=${resp.status}`
+    );
+    return { ok: true, sid: resp.sid, status: resp.status };
+  } catch (err) {
+    // Twilio errors include code/message/moreInfo
+    console.error("❌ Twilio Verify send error:", {
+      code: err.code,
+      message: err.message,
+      moreInfo: err.moreInfo,
+      status: err.status,
+    });
+    // rethrow so controller can surface a helpful error to the client
+    throw err;
+  }
 };
 
 export const checkOtpViaTwilioVerify = async (phone, code) => {
@@ -29,8 +44,19 @@ export const checkOtpViaTwilioVerify = async (phone, code) => {
     );
     return true;
   }
-  const resp = await client.verify.v2
-    .services(VERIFY_SID)
-    .verificationChecks.create({ to: phone, code });
-  return resp.status === "approved";
+  try {
+    const resp = await client.verify.v2
+      .services(VERIFY_SID)
+      .verificationChecks.create({ to: phone, code });
+    console.log(`🔎 Twilio Verify check: to=${phone} status=${resp.status}`);
+    return resp.status === "approved";
+  } catch (err) {
+    console.error("❌ Twilio Verify check error:", {
+      code: err.code,
+      message: err.message,
+      moreInfo: err.moreInfo,
+      status: err.status,
+    });
+    return false;
+  }
 };

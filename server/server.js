@@ -1,13 +1,24 @@
 // server/server.js
-import "dotenv/config";
+// ⬇️ load .env explicitly from project root OR keep it as-is if your .env sits in /server
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+// Resolve __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// If your .env is at the monorepo ROOT (recommended), this resolves to ../.env
+// If you instead keep .env inside /server, change to: path.resolve(__dirname, ".env")
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+
+// --- from here, your original imports (unchanged) ---
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import compression from "compression";
-import path from "path";
-import { fileURLToPath } from "url";
 
 // DB
 import { connectDB } from "./config/db.js";
@@ -45,7 +56,6 @@ if (process.env.BUILD_INDEXES === "true") {
 }
 
 /* ---------- OPTIONAL: seed 1 sample product when empty ---------- */
-// CHANGED: avoid enum violations (use valid values or omit)
 if (process.env.SEED_ON_BOOT === "true") {
   try {
     const { default: Product } = await import("./models/Product.js");
@@ -58,7 +68,6 @@ if (process.env.SEED_ON_BOOT === "true") {
         price: 99,
         stock: 10,
         images: [],
-        // valid enum examples (or omit any of these to keep null)
         flowerType: "Rose",
         flowerColor: "Red",
         occasion: "Birthday",
@@ -74,9 +83,6 @@ if (process.env.SEED_ON_BOOT === "true") {
     console.error("Seed error:", e?.message || e);
   }
 }
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
@@ -103,20 +109,14 @@ if (!isProd) {
 // Build reusable corsOptions so we can use them for app.use and app.options
 const corsOptions = {
   origin(origin, cb) {
-    // allow non-browser requests (curl, server-to-server)
     if (!origin) return cb(null, true);
-
-    // allow configured list
     if (allowList.includes(origin)) return cb(null, true);
-
-    // special-case local dev origin formats when NODE_ENV not set
     if (
       !process.env.NODE_ENV &&
       /^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin)
     ) {
       return cb(null, true);
     }
-
     return cb(new Error(`CORS: origin ${origin} not allowed`), false);
   },
   credentials: true,
@@ -126,13 +126,12 @@ const corsOptions = {
 };
 
 app.use((req, res, next) => {
-  // ensure Vary: Origin to allow proper caching behavior when different origins are served
   res.setHeader("Vary", "Origin");
   next();
 });
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // ensure preflight uses same options
+app.options("*", cors(corsOptions));
 
 // ------------------------
 // Security / core middleware
@@ -153,13 +152,10 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // ------------------------
 // Static: local uploads
 // ------------------------
-// IMPORTANT: compute Access-Control-Allow-Origin per-request (echo) instead of
-// always using allowList[0], so Netlify or other allowed origins get served correctly.
 app.use(
   "/uploads",
   (req, res, next) => {
     const origin = req.headers.origin;
-    // If origin is absent (curl etc.), allow using the first allowed origin or *
     if (!origin) {
       res.setHeader("Access-Control-Allow-Origin", allowList[0] || "*");
       res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -170,8 +166,6 @@ app.use(
       );
       return next();
     }
-
-    // If origin present and allowed, echo it (required when credentials=true)
     if (allowList.includes(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -182,16 +176,12 @@ app.use(
       );
       return next();
     }
-
-    // otherwise, don't set CORS headers (will be blocked by browser)
     return next();
   },
   express.static(path.join(process.cwd(), "uploads"), {
     setHeaders(res) {
-      // Keep cache & cross-origin resource policy headers here
       res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
       res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-      // Access-Control-Allow-Origin is set per-request above
     },
   })
 );
@@ -250,4 +240,13 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`🚀 API running on port ${PORT}`);
+  // Tiny boot log so you can confirm env mode for OTP:
+  const usingTwilio =
+    !!process.env.TWILIO_ACCOUNT_SID &&
+    !!process.env.TWILIO_AUTH_TOKEN &&
+    !!process.env.TWILIO_VERIFY_SERVICE_SID &&
+    String(process.env.SMS_DRY_RUN).toLowerCase() !== "true";
+  console.log(
+    `🔐 OTP mode: ${usingTwilio ? "Twilio Verify (SMS live)" : "DEV/manual (console/debugCode)"}`
+  );
 });

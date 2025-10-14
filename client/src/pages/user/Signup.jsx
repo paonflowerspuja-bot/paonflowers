@@ -9,13 +9,22 @@ import {
 } from "../../utils/api";
 import AuthForm from "../../components/AuthForm";
 
-function normalizeUAEPhone(input) {
+// ✅ Accept India (+91) and UAE (+971), return E.164
+function normalizePhone(input) {
   const raw = String(input || "").replace(/\s+/g, "");
-  if (raw.startsWith("+")) return raw;
+  if (raw.startsWith("+")) return raw; // already normalized
   const digits = raw.replace(/\D/g, "");
+
+  // UAE patterns
   if (digits.startsWith("971")) return `+${digits}`;
   if (digits.startsWith("05")) return `+971${digits.slice(1)}`;
   if (digits.startsWith("5")) return `+971${digits}`;
+
+  // India patterns
+  if (digits.startsWith("91")) return `+${digits}`;
+  if (/^[6-9]\d{9}$/.test(digits)) return `+91${digits}`;
+
+  // fallback
   return `+${digits}`;
 }
 
@@ -50,13 +59,15 @@ export default function Signup() {
     setError("");
     try {
       setBusy(true);
-      const normalized = normalizeUAEPhone(formData.phone);
+      const normalized = normalizePhone(formData.phone);
       if (!/^\+\d{10,15}$/.test(normalized))
-        throw new Error("Please enter a valid UAE number");
+        throw new Error("Please enter a valid phone number (India or UAE)");
 
       const res = await sendOtpAPI(normalized);
       const dbg = res?.data?.debugCode;
-      if (dbg) setError(`OTP (dev): ${dbg}`);
+      if (dbg && import.meta.env.MODE !== "production") {
+        setError(`OTP (dev): ${dbg}`);
+      }
 
       setFormData((f) => ({ ...f, phone: normalized }));
       setStep("code");
@@ -75,9 +86,7 @@ export default function Signup() {
     try {
       setBusy(true);
 
-      const phone = normalizeUAEPhone(formData.phone);
-      console.log("VERIFY payload →", { phone, code }); // diag
-
+      const phone = normalizePhone(formData.phone);
       const res = await verifyOtpAPI(phone, code);
       const { token, user } = res?.data || {};
       if (!token) throw new Error("No token");
@@ -128,7 +137,6 @@ export default function Signup() {
     <div className="container py-5">
       <div className="row justify-content-center">
         <div className="col-12 col-md-8 col-lg-5">
-          {/* error area also shows dev OTP without style changes */}
           <AuthForm
             type="signup"
             step={step}

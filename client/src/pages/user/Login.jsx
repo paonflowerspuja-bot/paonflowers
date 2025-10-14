@@ -4,14 +4,22 @@ import { useAuth } from "../../context/AuthContext";
 import { sendOtpAPI, verifyOtpAPI, getMeAPI } from "../../utils/api";
 import AuthForm from "../../components/AuthForm";
 
-// Always normalize to E.164 (+971...) before calling the API
-function normalizeUAEPhone(input) {
+// ✅ Accept India (+91) and UAE (+971), return E.164
+function normalizePhone(input) {
   const raw = String(input || "").replace(/\s+/g, "");
-  if (raw.startsWith("+")) return raw;
+  if (raw.startsWith("+")) return raw; // already normalized
   const digits = raw.replace(/\D/g, "");
+
+  // UAE patterns
   if (digits.startsWith("971")) return `+${digits}`;
   if (digits.startsWith("05")) return `+971${digits.slice(1)}`;
   if (digits.startsWith("5")) return `+971${digits}`;
+
+  // India patterns
+  if (digits.startsWith("91")) return `+${digits}`;
+  if (/^[6-9]\d{9}$/.test(digits)) return `+91${digits}`;
+
+  // fallback
   return `+${digits}`;
 }
 
@@ -38,13 +46,16 @@ export default function Login() {
     setError("");
     try {
       setBusy(true);
-      const normalized = normalizeUAEPhone(formData.phone);
+      const normalized = normalizePhone(formData.phone);
       if (!/^\+\d{10,15}$/.test(normalized))
-        throw new Error("Please enter a valid UAE number");
+        throw new Error("Please enter a valid phone number (India or UAE)");
 
       const res = await sendOtpAPI(normalized);
+      // Show debug OTP ONLY in non-production builds
       const dbg = res?.data?.debugCode;
-      if (dbg) setError(`OTP (dev): ${dbg}`); // visible during dev
+      if (dbg && import.meta.env.MODE !== "production") {
+        setError(`OTP (dev): ${dbg}`);
+      }
 
       // store normalized phone so verify uses the exact same value
       setFormData((f) => ({ ...f, phone: normalized }));
@@ -66,15 +77,14 @@ export default function Login() {
       setBusy(true);
 
       // Always re-normalize just in case user went back and edited
-      const phone = normalizeUAEPhone(formData.phone);
-      console.log("VERIFY payload →", { phone, code }); // diag
-
+      const phone = normalizePhone(formData.phone);
       const res = await verifyOtpAPI(phone, code);
       const { token, user } = res?.data || {};
       if (!token) throw new Error("No token");
 
       localStorage.setItem("pf_token", token);
 
+      // fetch latest profile
       const me = await getMeAPI().catch(() => ({ data: {} }));
       const u = me?.data?.user || user;
 
@@ -100,7 +110,6 @@ export default function Login() {
     <div className="container py-5">
       <div className="row justify-content-center">
         <div className="col-12 col-md-8 col-lg-5">
-          {/* passing error shows dev OTP or validation message without style changes */}
           <AuthForm
             type="login"
             step={step}
