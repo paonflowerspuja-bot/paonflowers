@@ -62,7 +62,7 @@ export default function Login() {
       setStep("code");
       setResendAt(Date.now() + 30_000);
     } catch (e) {
-      setError(e?.data?.error || e?.message || "Failed to send OTP");
+      setError(e?.response?.data?.error || e?.message || "Failed to send OTP");
     } finally {
       setBusy(false);
     }
@@ -100,7 +100,7 @@ export default function Login() {
         navigate("/");
       }
     } catch (e) {
-      setError(e?.data?.error || e?.message || "Invalid/expired OTP");
+      setError(e?.response?.data?.error || e?.message || "Invalid/expired OTP");
     } finally {
       setBusy(false);
     }

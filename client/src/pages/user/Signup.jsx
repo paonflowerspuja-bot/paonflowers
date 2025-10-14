@@ -73,7 +73,7 @@ export default function Signup() {
       setStep("code");
       setResendAt(Date.now() + 30_000);
     } catch (e) {
-      setError(e?.data?.error || e?.message || "Failed to send OTP");
+      setError(e?.response?.data?.error || e?.message || "Failed to send OTP");
     } finally {
       setBusy(false);
     }
@@ -106,7 +106,7 @@ export default function Signup() {
         setStep("details");
       }
     } catch (e) {
-      setError(e?.data?.error || e?.message || "Invalid/expired OTP");
+      setError(e?.response?.data?.error || e?.message || "Invalid/expired OTP");
     } finally {
       setBusy(false);
     }
@@ -127,7 +127,7 @@ export default function Signup() {
       login(u);
       navigate(u?.isAdmin ? "/admin" : "/");
     } catch (e) {
-      setError(e?.data?.error || "Could not save details");
+      setError(e?.response?.data?.error || "Could not save details");
     } finally {
       setBusy(false);
     }
