@@ -41,7 +41,7 @@ const sign = (user) =>
   });
 
 // ---------------------------------------------
-// OTP + AUTH HANDLERS (unchanged from your code)
+// OTP + AUTH HANDLERS
 // ---------------------------------------------
 
 export const sendOtp = async (req, res) => {
@@ -119,6 +119,11 @@ export const verifyOtp = async (req, res) => {
       await user.save();
     }
 
+    // ✅ Include full profile fields
+    const profileComplete =
+      !!(user?.name && String(user.name).trim()) &&
+      !!(user?.location && String(user.location).trim());
+
     const token = sign(user);
     return res.json({
       ok: true,
@@ -127,7 +132,11 @@ export const verifyOtp = async (req, res) => {
         id: user._id,
         phone: user.phone,
         name: user.name,
+        email: user.email,
+        location: user.location,
+        dob: user.dob,
         isAdmin: !!user.isAdmin,
+        profileComplete,
       },
     });
   } catch (e) {
@@ -156,13 +165,18 @@ export const me = async (req, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
+    // ✅ Include full fields here
     return res.json({
       ok: true,
       user: {
         id: user._id,
         phone: user.phone,
         name: user.name,
+        email: user.email,
+        location: user.location,
+        dob: user.dob,
         isAdmin: !!user.isAdmin,
+        profileComplete: !!user.profileComplete,
       },
     });
   } catch (e) {
@@ -172,7 +186,7 @@ export const me = async (req, res) => {
 };
 
 // ---------------------------------------------
-// ✅ NEW: PATCH /api/auth/profile
+// ✅ PATCH /api/auth/profile
 // ---------------------------------------------
 export const updateProfile = async (req, res) => {
   try {
