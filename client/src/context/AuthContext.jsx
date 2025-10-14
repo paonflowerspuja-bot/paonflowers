@@ -1,4 +1,3 @@
-// client/src/context/AuthContext.jsx
 import React, {
   createContext,
   useContext,
@@ -23,7 +22,6 @@ export const AuthProvider = ({ children }) => {
           setLoading(false);
           return;
         }
-        // ✅ always include Authorization header in getMeAPI
         const { data } = await getMeAPI(token);
         if (data?.ok && data.user) {
           setUser(data.user);
@@ -32,8 +30,7 @@ export const AuthProvider = ({ children }) => {
           setToken(null);
           setUser(null);
         }
-      } catch (e) {
-        console.warn("getMe failed:", e);
+      } catch {
         localStorage.removeItem("pf_token");
         setToken(null);
         setUser(null);
@@ -58,7 +55,6 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  // ✅ memoized value
   const value = useMemo(
     () => ({ user, token, loading, login, logout }),
     [user, token, loading]
@@ -66,12 +62,8 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {/* ✅ prevent routing redirects until loading done */}
-      {loading ? (
-        <div className="text-center py-5">Loading...</div>
-      ) : (
-        children
-      )}
+      {/* ✅ Hide children until auth check finishes, but no text or flicker */}
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
