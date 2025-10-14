@@ -11,3 +11,16 @@ yarn-error.log*
 pnpm-debug.log*
 # Local uploads (do NOT commit)
 server/uploads/
+
+# env
+.env
+*.env
+**/.env
+server/.env
+client/.env
+.env.*.local
+.env.local
+
+# build/temp
+dist
+node_modules

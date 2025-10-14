@@ -196,15 +196,15 @@ const data = {
     heading: "Come Shop With Us",
     items: [
       {
-        title: "Best Sellers",
-        image: "/assets/about/shop-best.jpg",
-        cta: { label: "Shop Now", href: "/shop/best-sellers" },
+        title: "Featured Bouquets",
+        image: "/images/eid-hero.jpeg",
+        cta: { label: "Shop Now", href: "/FeaturedFlowers" },
         circleSize: 240, // px (change per card)
       },
       {
-        title: "All Flowers",
-        image: "/assets/about/shop-all.jpg",
-        cta: { label: "Shop All", href: "/shop" },
+        title: "Shop All Flowers",
+        image: "/images/valentineday-hero.jpg",
+        cta: { label: "Shop Now", href: "/shop" },
         circleSize: 220,
       },
     ],
@@ -397,34 +397,26 @@ export default function AboutPaonFlowers() {
       </section>
 
       {/* STORY */}
-      <section className="bg-dark text-light py-5">
-        <div className="container">
-          <p className="text-uppercase small mb-1 opacity-75">
-            {data.story.sub}
-          </p>
-          <h3 className="h4 fw-bold mb-3">{data.story.heading}</h3>
-          <div className="row g-4 align-items-center">
-            <div className="col-12 col-lg-6">
-              <p className="mb-0">{data.story.body}</p>
-            </div>
-            <div className="col-12 col-lg-6">
-              <div className="row g-3">
-                {data.story.images.map((im, i) => (
-                  <div className="col-6" key={i}>
-                    <AspectBox
-                      ratio={data.story.ratio || "1/1"}
-                      rounded={data.story.rounded || "12px"}
-                      className="shadow"
-                    >
-                      <SmartImg src={im} alt={`Story ${i + 1}`} />
-                    </AspectBox>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+<section
+  className="story-section text-light py-5"
+  style={{
+    backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url('/images/png1.png')`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundAttachment: "fixed",
+  }}
+>
+  <div className="container text-center">
+    <p className="text-uppercase small mb-2 opacity-75">
+      {data.story.sub}
+    </p>
+    <h3 className="h3 fw-bold mb-3">{data.story.heading}</h3>
+    <div className="mx-auto" style={{ maxWidth: "720px" }}>
+      <p className="lead">{data.story.body}</p>
+    </div>
+  </div>
+</section>
+
 
       {/* SHOP WITH US */}
       <section className="container py-5">
@@ -447,7 +439,7 @@ export default function AboutPaonFlowers() {
                 <h4 className="h6 fw-bold mt-3">{item.title}</h4>
                 <a
                   href={item.cta.href}
-                  className="btn btn-dark mt-auto align-self-center"
+                  className="btn-pink 1875rem mt-auto"
                 >
                   {item.cta.label}
                 </a>

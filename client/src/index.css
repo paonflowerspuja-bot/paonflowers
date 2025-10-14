@@ -47,6 +47,8 @@
   background: #e91e63 !important;
   color: #fff !important;
   border: none !important;
+  text-decoration: none !important;
+  border-radius: 10px;
 }
 .btn-pink:hover {
   filter: brightness(0.95);
@@ -115,16 +117,16 @@ body {
 
 body {
   margin: 0;
-  /* background: linear-gradient(
+  background: linear-gradient(
     to bottom right,
     var(--off-white),
     var(--off-peach)
-  ); */
-  background: linear-gradient(
+  );
+  /* background: linear-gradient(
     180deg,
     rgba(255, 235, 240, 0.7),
-    rgba(255, 255, 255, 0.9)
-  );
+    rgba(255, 255, 255, 0.9) */
+  /* ); */
   color: var(--text-body);
   font-family: var(--font-body);
   line-height: 1.6;
