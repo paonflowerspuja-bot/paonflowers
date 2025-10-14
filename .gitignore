@@ -25,3 +25,12 @@ client/.env
 # build/temp
 dist
 node_modules
+.env
+*.env
+**/.env
+.env.local
+.env.*.local
+server/.env
+client/.env
+node_modules
+dist
