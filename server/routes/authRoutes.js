@@ -1,6 +1,5 @@
-// server/routes/authRoutes.js
 import { Router } from "express";
-import { sendOtp, verifyOtp, me } from "../controllers/authController.js";
+import { sendOtp, verifyOtp, me, updateProfile } from "../controllers/authController.js";
 import auth from "../middleware/auth.js";
 import { otpSendLimiter } from "../middleware/rateLimit.js";
 
@@ -15,6 +14,9 @@ const router = Router();
 
 router.post("/send-otp", otpSendLimiter, sendOtp);
 router.post("/verify-otp", verifyOtp);
+
+// ✅ NEW: add protected profile update route
+router.patch("/profile", auth, updateProfile);
 
 // /me is protected by JWT, unless SKIP_AUTH explicitly enabled for local dev
 const SKIP_AUTH = String(process.env.SKIP_AUTH || "").toLowerCase() === "true";
