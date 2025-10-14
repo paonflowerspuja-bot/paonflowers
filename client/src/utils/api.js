@@ -1,6 +1,7 @@
 // client/src/utils/api.js
 import axios from "axios";
 
+// ---------- BASE URL SETUP ----------
 const RAW = (
   import.meta.env.VITE_API_URL ||
   import.meta.env.VITE_API_BASE_URL ||
@@ -11,44 +12,39 @@ const RAW = (
 
 export const API_BASE = RAW.replace(/\/+$/, "");
 
-/**
- * Default API client:
- * - Good for JSON requests (GET/POST/PATCH without files)
- * - 15s timeout (keeps UI snappy for product listing)
- */
+// ---------- PRIMARY API CLIENT ----------
 const api = axios.create({
   baseURL: API_BASE,
   withCredentials: false,
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",
-    // intentionally minimal; axios sets Accept by default
   },
 });
 
-/**
- * Upload API client:
- * - Intended ONLY for FormData/file uploads
- * - No default Content-Type (lets axios set multipart boundary automatically)
- * - 30s timeout to tolerate larger images / slower networks
- */
+// ---------- UPLOAD CLIENT ----------
 export const uploadApi = axios.create({
   baseURL: API_BASE,
   withCredentials: false,
-  timeout: 30000, // <- longer for uploads
-  // no default headers here on purpose
+  timeout: 30000, // for uploads
 });
 
-// ----- Shared interceptors (token & 401 handling) -----
+// ---------- AUTH TOKEN INTERCEPTORS ----------
 const attachAuth = (instance) => {
+  // ✅ Always attach token from localStorage if available
   instance.interceptors.request.use((config) => {
     try {
       const token = localStorage.getItem("pf_token");
-      if (token) config.headers.Authorization = `Bearer ${token}`;
-    } catch {}
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (e) {
+      console.warn("Token attach failed:", e);
+    }
     return config;
   });
 
+  // ✅ Handle unauthorized errors globally
   instance.interceptors.response.use(
     (res) => res,
     (err) => {
@@ -66,9 +62,10 @@ const attachAuth = (instance) => {
 attachAuth(api);
 attachAuth(uploadApi);
 
+// ---------- EXPORT DEFAULT API INSTANCE ----------
 export default api;
 
-// ---- tiny helpers (unchanged from your file) ----
+// ---------- PATH HELPERS ----------
 export const apiPath = (p = "") =>
   `${API_BASE}${p.startsWith("/") ? "" : "/"}${p}`;
 
@@ -77,25 +74,23 @@ export const imgUrl = (url) =>
     ? url
     : `${API_BASE}${url?.startsWith("/") ? "" : "/"}${url || ""}`;
 
-// ---- existing auth/profile APIs (kept as-is using json api) ----
+// ---------- AUTH / PROFILE ENDPOINTS ----------
 export const sendOtpAPI = (phone) => api.post("/api/auth/send-otp", { phone });
 export const verifyOtpAPI = (phone, code) =>
   api.post("/api/auth/verify-otp", { phone, code });
+
+// ✅ Now always sends token via interceptor → no need to pass manually
 export const getMeAPI = () => api.get("/api/auth/me");
 export const updateProfileAPI = (payload) =>
   api.patch("/api/auth/profile", payload);
 
-// ---- OPTIONAL convenience helpers for uploads ----
-// Use these only where you POST/PATCH FormData (e.g., product create/update).
-// They ensure the 30s timeout and proper FormData handling without global header issues.
+// ---------- OPTIONAL HELPERS FOR FILE UPLOADS ----------
 export const postMultipart = (url, formData, config = {}) =>
   uploadApi.post(url, formData, {
-    // DO NOT set Content-Type here; axios will set multipart boundary automatically
-    ...config,
+    ...config, // no manual Content-Type
   });
 
 export const patchMultipart = (url, formData, config = {}) =>
   uploadApi.patch(url, formData, {
-    // same note as above
     ...config,
   });
