@@ -40,27 +40,7 @@ const sign = (user) =>
     expiresIn: process.env.JWT_EXPIRES || "7d",
   });
 
-/* -------- helpers -------- */
-function parseDateFlex(input) {
-  if (!input) return null;
-  const s = String(input).trim();
-
-  // ISO / browser date input "YYYY-MM-DD"
-  let d = new Date(s);
-  if (!isNaN(d.getTime())) return d;
-
-  // Accept "DD/MM/YYYY"
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-    const [dd, mm, yyyy] = s.split("/");
-    const iso = `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}T00:00:00Z`;
-    const d2 = new Date(iso);
-    if (!isNaN(d2.getTime())) return d2;
-  }
-
-  return null;
-}
-
-/* -------- OTP + AUTH -------- */
+// ----------------- OTP -----------------
 
 export const sendOtp = async (req, res) => {
   try {
@@ -70,10 +50,7 @@ export const sendOtp = async (req, res) => {
     }
 
     const since = new Date(Date.now() - 60 * 60 * 1000);
-    const countLastHour = await OtpToken.countDocuments({
-      phone,
-      createdAt: { $gte: since },
-    });
+    const countLastHour = await OtpToken.countDocuments({ phone, createdAt: { $gte: since } });
     if (countLastHour >= OTP_MAX_PER_HOUR) {
       return res.status(429).json({ error: "Too many OTP requests. Try again later." });
     }
@@ -114,10 +91,7 @@ export const verifyOtp = async (req, res) => {
     }
 
     if (!isUsingTwilioVerify()) {
-      if (IS_PROD || !ALLOW_DEV_OTP) {
-        return res.status(400).json({ error: "Invalid or expired OTP" });
-      }
-
+      if (IS_PROD || !ALLOW_DEV_OTP) return res.status(400).json({ error: "Invalid or expired OTP" });
       const tok = await OtpToken.findOne({ phone }).sort({ createdAt: -1 });
       if (!tok || tok.expiresAt < new Date() || String(tok.code) !== code) {
         return res.status(400).json({ error: "Invalid or expired OTP" });
@@ -129,6 +103,7 @@ export const verifyOtp = async (req, res) => {
     }
 
     const isAdminPhone = ADMIN_PHONES.includes(phone);
+
     let user = await User.findOne({ phone });
     if (!user) {
       user = await User.create({ phone, name: "User", isAdmin: !!isAdminPhone });
@@ -149,11 +124,11 @@ export const verifyOtp = async (req, res) => {
         id: user._id,
         phone: user.phone,
         name: user.name,
-        email: user.email,
-        location: user.location,
-        dob: user.dob,
+        email: user.email,        // ✅ now included
+        location: user.location,  // ✅ now included
+        dob: user.dob,            // ✅ now included
         isAdmin: !!user.isAdmin,
-        profileComplete,
+        profileComplete,          // ✅ include flag
       },
     });
   } catch (e) {
@@ -161,6 +136,8 @@ export const verifyOtp = async (req, res) => {
     return res.status(500).json({ error: "Failed to verify OTP" });
   }
 };
+
+// ----------------- ME -----------------
 
 export const me = async (req, res) => {
   try {
@@ -174,33 +151,30 @@ export const me = async (req, res) => {
           id: "dev-user",
           phone: "+0000000000",
           name: "Dev User",
-          isAdmin: !!DEV_AS_ADMIN,
-          email: null,
-          location: null,
+          email: "",
+          location: "",
           dob: null,
+          isAdmin: !!DEV_AS_ADMIN,
           profileComplete: false,
         },
       });
     }
 
-    // 🔑 IMPORTANT: load fresh user from DB (req.user may only have id/isAdmin)
-    const uid = req?.user?._id || req?.user?.id;
-    if (!uid) return res.status(401).json({ error: "Unauthorized" });
-
-    const fresh = await User.findById(uid).lean();
-    if (!fresh) return res.status(404).json({ error: "User not found" });
+    // auth middleware already fetched the user; it spreads toObject() → includes new fields
+    const u = req.user;
+    if (!u) return res.status(401).json({ error: "Unauthorized" });
 
     return res.json({
       ok: true,
       user: {
-        id: fresh._id,
-        phone: fresh.phone,
-        name: fresh.name,
-        email: fresh.email,
-        location: fresh.location,
-        dob: fresh.dob,
-        isAdmin: !!fresh.isAdmin,
-        profileComplete: !!fresh.profileComplete,
+        id: u._id,
+        phone: u.phone,
+        name: u.name,
+        email: u.email ?? "",
+        location: u.location ?? "",
+        dob: u.dob ?? null,
+        isAdmin: !!u.isAdmin,
+        profileComplete: !!u.profileComplete,
       },
     });
   } catch (e) {
@@ -209,7 +183,7 @@ export const me = async (req, res) => {
   }
 };
 
-/* -------- PROFILE -------- */
+// ----------------- PROFILE -----------------
 
 export const updateProfile = async (req, res) => {
   try {
@@ -217,6 +191,7 @@ export const updateProfile = async (req, res) => {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const { name, email, location, dob } = req.body || {};
+
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -224,12 +199,19 @@ export const updateProfile = async (req, res) => {
     if (typeof email === "string") user.email = email.trim();
     if (typeof location === "string") user.location = location.trim();
 
-    const parsedDob = parseDateFlex(dob);
-    if (parsedDob) user.dob = parsedDob;
+    // Accept both "YYYY-MM-DD" and "DD/MM/YYYY"
+    if (dob) {
+      const s = String(dob).trim();
+      let parsed = new Date(s);
+      if (isNaN(parsed.getTime()) && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+        const [dd, mm, yyyy] = s.split("/");
+        parsed = new Date(`${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}T00:00:00Z`);
+      }
+      if (!isNaN(parsed.getTime())) user.dob = parsed;
+    }
 
-    const hasName = !!user.name && user.name.trim().length > 0;
-    const hasLocation = !!user.location && user.location.trim().length > 0;
-    user.profileComplete = hasName && hasLocation;
+    user.profileComplete =
+      !!(user.name && user.name.trim()) && !!(user.location && user.location.trim());
 
     await user.save();
 
