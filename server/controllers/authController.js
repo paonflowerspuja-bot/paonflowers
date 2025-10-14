@@ -40,9 +40,27 @@ const sign = (user) =>
     expiresIn: process.env.JWT_EXPIRES || "7d",
   });
 
-// ---------------------------------------------
-// OTP + AUTH HANDLERS
-// ---------------------------------------------
+/* -------- helpers -------- */
+function parseDateFlex(input) {
+  if (!input) return null;
+  const s = String(input).trim();
+
+  // ISO / browser date input "YYYY-MM-DD"
+  let d = new Date(s);
+  if (!isNaN(d.getTime())) return d;
+
+  // Accept "DD/MM/YYYY"
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    const [dd, mm, yyyy] = s.split("/");
+    const iso = `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}T00:00:00Z`;
+    const d2 = new Date(iso);
+    if (!isNaN(d2.getTime())) return d2;
+  }
+
+  return null;
+}
+
+/* -------- OTP + AUTH -------- */
 
 export const sendOtp = async (req, res) => {
   try {
@@ -119,7 +137,6 @@ export const verifyOtp = async (req, res) => {
       await user.save();
     }
 
-    // ✅ Include full profile fields
     const profileComplete =
       !!(user?.name && String(user.name).trim()) &&
       !!(user?.location && String(user.location).trim());
@@ -158,25 +175,32 @@ export const me = async (req, res) => {
           phone: "+0000000000",
           name: "Dev User",
           isAdmin: !!DEV_AS_ADMIN,
+          email: null,
+          location: null,
+          dob: null,
+          profileComplete: false,
         },
       });
     }
 
-    const user = req.user;
-    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    // 🔑 IMPORTANT: load fresh user from DB (req.user may only have id/isAdmin)
+    const uid = req?.user?._id || req?.user?.id;
+    if (!uid) return res.status(401).json({ error: "Unauthorized" });
 
-    // ✅ Include full fields here
+    const fresh = await User.findById(uid).lean();
+    if (!fresh) return res.status(404).json({ error: "User not found" });
+
     return res.json({
       ok: true,
       user: {
-        id: user._id,
-        phone: user.phone,
-        name: user.name,
-        email: user.email,
-        location: user.location,
-        dob: user.dob,
-        isAdmin: !!user.isAdmin,
-        profileComplete: !!user.profileComplete,
+        id: fresh._id,
+        phone: fresh.phone,
+        name: fresh.name,
+        email: fresh.email,
+        location: fresh.location,
+        dob: fresh.dob,
+        isAdmin: !!fresh.isAdmin,
+        profileComplete: !!fresh.profileComplete,
       },
     });
   } catch (e) {
@@ -185,26 +209,23 @@ export const me = async (req, res) => {
   }
 };
 
-// ---------------------------------------------
-// ✅ PATCH /api/auth/profile
-// ---------------------------------------------
+/* -------- PROFILE -------- */
+
 export const updateProfile = async (req, res) => {
   try {
     const userId = req?.user?._id || req?.user?.id;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const { name, email, location, dob } = req.body || {};
-
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
 
     if (typeof name === "string") user.name = name.trim();
     if (typeof email === "string") user.email = email.trim();
     if (typeof location === "string") user.location = location.trim();
-    if (dob) {
-      const dt = new Date(dob);
-      if (!isNaN(dt.getTime())) user.dob = dt;
-    }
+
+    const parsedDob = parseDateFlex(dob);
+    if (parsedDob) user.dob = parsedDob;
 
     const hasName = !!user.name && user.name.trim().length > 0;
     const hasLocation = !!user.location && user.location.trim().length > 0;
