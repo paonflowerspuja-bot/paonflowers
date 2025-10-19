@@ -37,7 +37,7 @@ const StoreLocation = () => {
 
         <div className="detail-card">
           <h3> Contact</h3>
-          <p>+971 56 408 2871</p>
+          <p>+971 54 507 8365</p>
           <p>Email: Santosh@paonflowers.com</p>
         </div>
       </div>

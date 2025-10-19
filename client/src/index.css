@@ -48,7 +48,7 @@
   color: #fff !important;
   border: none !important;
   text-decoration: none !important;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 .btn-pink:hover {
   filter: brightness(0.95);
