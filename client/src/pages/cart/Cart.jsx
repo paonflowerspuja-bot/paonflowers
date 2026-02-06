@@ -26,7 +26,7 @@ const Cart = () => {
             <thead>
               <tr>
                 <th>Product</th>
-                <th>Price (₹)</th>
+                <th>Price (AED)</th>
                 <th>Quantity</th>
                 <th>Total</th>
                 <th>Remove</th>
@@ -100,7 +100,7 @@ const Cart = () => {
             >
               Clear Cart
             </button>
-            <h4>Total: ₹{getTotal()}</h4>
+            <h4>Total: AED{getTotal()}</h4>
             <Link to="/checkout" className="btn btn-success">
               Proceed to Checkout
             </Link>
